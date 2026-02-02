@@ -1,3 +1,9 @@
+# 1.0.0 (2026-02-02)
+
+### Features
+
+- **catalogs:** procedures catalog (types + requirements) ([a584f66](https://github.com/MarcoVegaR/olpuv2/commit/a584f664db5fba34b41de8540e81178826075461))
+
 # [1.9.0](https://github.com/MarcoVegaR/boilerplate-laravel12/compare/v1.8.0...v1.9.0) (2025-09-13)
 
 ### Features

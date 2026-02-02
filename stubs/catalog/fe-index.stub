@@ -14,12 +14,15 @@ import { toast } from 'sonner';
 interface IndexProps extends PageProps {
   rows: TRow[];
   meta: {
-    current_page: number;
-    per_page: number;
+    current_page?: number;
+    currentPage?: number;
+    per_page?: number;
+    perPage?: number;
     total: number;
-    last_page: number;
-    from: number;
-    to: number;
+    last_page?: number;
+    lastPage?: number;
+    from?: number;
+    to?: number;
   };
   stats?: { total?: number; active?: number };
   flash?: { success?: string; error?: string; warning?: string; info?: string };
@@ -29,11 +32,12 @@ interface IndexProps extends PageProps {
 export default function IndexPage() {
   const { rows, meta, auth, stats, flash } = usePage<IndexProps>().props;
 
+  const currentPage = meta.current_page ?? meta.currentPage ?? 1;
+  const perPage = meta.per_page ?? meta.perPage ?? 10;
+
   // State
-  const [pageIndex, setPageIndex] = React.useState(
-    Math.max(0, ((meta as any)?.current_page ?? (meta as any)?.currentPage ?? 1) - 1),
-  );
-  const [pageSize, setPageSize] = React.useState(((meta as any)?.per_page ?? (meta as any)?.perPage ?? 10) as number);
+  const [pageIndex, setPageIndex] = React.useState(Math.max(0, currentPage - 1));
+  const [pageSize, setPageSize] = React.useState(perPage);
   const [globalFilter, setGlobalFilter] = React.useState('');
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);

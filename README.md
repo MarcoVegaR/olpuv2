@@ -1,18 +1,107 @@
-# Boilerplate Laravel 12 — React + TypeScript (Inertia)
+# OLPv2 — Sistema de Trámites (Planeamiento Urbano)
 
-Base inicial del proyecto con Laravel 12 y React + TypeScript (Inertia) lista para desarrollo local con Vite, autenticación básica y estructura mínima de páginas.
+Sistema para gestionar trámites administrativos desde su ingreso por taquilla hasta su culminación, con dos objetivos principales:
+
+- **Autenticidad del documento final** mediante **QR** y verificación pública.
+- **Seguimiento ciudadano** por **tracking number**, sin acceso al backoffice.
+
+## Punto de partida: qué ya cubre el boilerplate
+
+Este proyecto parte de un boilerplate Laravel 12 + Inertia + React/TypeScript que ya trae resueltos componentes clave para construir el sistema.
+
+Backend:
+
+- **Laravel 12** con estructura modular de rutas.
+- **Autenticación** con Fortify (incluye **2FA**) y control de usuarios activos.
+- **RBAC** con Spatie Permission (roles/permisos) + policies.
+- **Auditoría** con owen-it/laravel-auditing (incluye eventos de login/logout).
+- **Rate limiting** para acciones sensibles (auth, exportaciones, bulk).
+- **Patrones**: Service/Repository + DTOs + index/export/bulk estandarizados.
+
+Frontend:
+
+- **Inertia.js + React + TypeScript**.
+- **Tailwind CSS v4** + shadcn/ui + Radix UI.
+- Páginas y patrón de **DataTable** (server-side) listo para módulos.
+
+Módulos base incluidos:
+
+- **Usuarios** (CRUD, export, bulk, setActive).
+- **Roles** (CRUD, export, bulk, setActive).
+- **Auditoría** (index/export).
+- **Settings** (perfil, password, seguridad/sesiones, apariencia).
+
+DevEx / Calidad:
+
+- Lint/format (Pint, ESLint, Prettier), typecheck, tests (Pest, Vitest).
+- CI para tests y lint.
+- Documentación con MkDocs.
+- `make:catalog` para generar módulos full-stack siguiendo convenciones.
+
+## Roadmap conceptual (hacia dónde vamos)
+
+### Fase 0 — Preparación (alineación + diseño)
+
+- Validar catálogo final de trámites (23/24) y requisitos por tipo.
+- Definir estados/fases, reglas de retorno por correcciones, tracking y número de recepción.
+- Definir contenido mínimo público para tracking y verificación QR (anti-“quishing”).
+
+### Fase 1 — MVP (orden + trazabilidad + portal público básico)
+
+- Backoffice: creación de expediente en taquilla, asignaciones, inspección/evidencias, respuesta y decisión.
+- Portal público: requisitos por trámite, consulta por tracking, verificación QR.
+- Generación de **QR desde recepción** (descargable como imagen para transición con Word/PDF).
+
+### Fase 2 — Iteración (calidad operativa + documentos + notificaciones)
+
+- Plantillas para planilla/decisión con QR.
+- Reglas por fase, retornos controlados, bitácora de correcciones (tracking/n° recepción) por Admin.
+- Notificaciones por email y reportes básicos por fase.
+
+### Fase 3 — Escalado (integraciones + endurecimiento)
+
+- Integración con sistema catastral, endurecimiento de privacidad/retención, métricas avanzadas.
+
+## Roadmap técnico / arquitectura (general)
+
+Dominio y módulos principales (backend + frontend):
+
+- **Solicitantes** (natural/jurídico) + representación de “autorizado/tercero” vía recaudo.
+- **Trámites/Expedientes** (tracking, n° recepción, fechas, tipo de trámite, estado/fase).
+- **Catálogo de trámites** (con requisitos y reglas: inspección aplica/no aplica, tipos con vigencia, copias certificadas).
+- **Recaudos/Adjuntos** (checklist + evidencias y documentos habilitantes).
+- **Inspección** (0/1 por trámite) + evidencias.
+- **Documentos emitidos** (planilla de recepción, decisión final, verificación QR).
+
+Portal público (sin login):
+
+- **Requisitos por trámite** (catálogo público).
+- **Tracking público** (estado/fase + fechas relevantes, sin PII).
+- **Verificación QR** (contenido mínimo, claro y antifraude).
+
+Seguridad y trazabilidad:
+
+- Policies/permisos por fase y acciones críticas.
+- Auditoría/timeline del expediente (eventos de negocio + auditoría técnica).
+- Mecanismo de correcciones controladas (solo Admin) para tracking/n° recepción con registro.
+
+Operación:
+
+- Estrategia de almacenamiento de archivos (evidencias/documentos), límites y retención.
+- Notificaciones y colas (email/queue).
+- Reportes operativos (bandejas por fase, tiempos promedio).
 
 ## Documentación
 
-Este README es intencionalmente breve. La guía completa (instalación detallada, patrones de backend y frontend, CI/CD, testing, etc.) vive en la web de documentación:
+- Fuentes: directorio `docs/` (MkDocs).
+- Arquitectura (punto de partida): `docs/arquitectura.md`.
+- Servir docs local:
 
-- Sitio de documentación (MkDocs): https://marcovegar.github.io/boilerplate-laravel12
-- Fuentes de la documentación: directorio `docs/`
+```bash
+npm run docs:serve
+```
 
-Para temas específicos consulta la navegación del sitio. Ejemplos:
-
-- CI/CD: https://marcovegar.github.io/boilerplate-laravel12/ci-cd/
-- Contribución: https://marcovegar.github.io/boilerplate-laravel12/contributing/
+Nota: el roadmap interno detallado se mantiene como documento local y no se versiona.
 
 ## Requisitos
 
@@ -32,7 +121,7 @@ composer install
 npm install
 
 # Base de datos (PostgreSQL por defecto)
-php artisan migrate
+php artisan migrate --seed
 
 # Build inicial de frontend (una vez)
 npm run build
@@ -45,34 +134,25 @@ npm run build
 composer run dev
 ```
 
-- App: http://127.0.0.1:8000
+- App: http://127.0.0.1:8001
 - Vite con recarga en caliente mediante `laravel-vite-plugin`.
-
-## Enlaces útiles
-
-- Documentación (inicio): https://marcovegar.github.io/boilerplate-laravel12
-- CI/CD (docs): https://marcovegar.github.io/boilerplate-laravel12/ci-cd/
-- Contribución (docs): https://marcovegar.github.io/boilerplate-laravel12/contributing/
 
 ## Alcance del README
 
-Para mantenerlo breve, la siguiente información está documentada en los Docs y no se repite aquí:
+Este README describe:
 
-- Permisos y roles (Spatie), políticas y gates
-- Tema y tokens (shadcn/ui — Supabase)
-- Convenciones de commits y flujo de ramas
-- Estructura del proyecto y scripts útiles
-- Pipelines de CI/calidad y versionado (semantic-release)
-- Guías paso a paso (Index, Show, filtros, DataTable, etc.)
+- qué es el sistema y el punto de partida del boilerplate,
+- en qué estado estamos hoy,
+- y el roadmap conceptual + técnico (general).
+
+La documentación detallada (patrones BE/FE, CI/CD, testing, etc.) vive en `docs/`.
 
 ## Contribuir
 
-PRs bienvenidas. Consulta la guía de contribución en la documentación: https://marcovegar.github.io/boilerplate-laravel12/contributing/
+PRs bienvenidas. Revisa la documentación en `docs/` y las convenciones del proyecto.
 
 ## Licencia
 
 MIT — ver [LICENSE](LICENSE).
-
-## Seguridad
 
 Si encuentras una vulnerabilidad, por favor abre un Issue privado (o un Security Advisory en GitHub cuando esté habilitado). No publiques detalles de explotación antes de un parche.

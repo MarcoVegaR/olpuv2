@@ -13,6 +13,8 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard');
 });
 
+require __DIR__.'/public.php';
+
 // Local-only playground to demo UI components without integrating into Index yet
 if (app()->isLocal()) {
     Route::get('/playground', function () {

@@ -318,7 +318,7 @@ class MakeCatalog extends Command
                 'fe_columns_columns' => $feColumns,
                 'fe_columns_display_expr' => 'String('.$feDisplayExpr.')',
                 'fe_show_overview_rows' => $feShowRows,
-                'fe_show_display_expr' => 'String('.str_replace('row.', '(item as any).', $feDisplayExpr).')',
+                'fe_show_display_expr' => 'String('.str_replace('row.', 'item.', $feDisplayExpr).')',
             ],
         ];
     }
@@ -819,7 +819,7 @@ class MakeCatalog extends Command
             </Field>";
         }
 
-        $activeBlock = $hasIsActive ? ("          {mode === 'edit' && (\n            <Field id=\"is_active\" label=\"Estado activo\" error={form.errors.is_active}>\n              <ActiveField\n                checked={!!form.data.is_active}\n                onChange={(v) => form.setData('is_active', v)}\n                canToggle={true}\n                activeLabel=\"Registro activo\"\n                inactiveLabel=\"Registro inactivo\"\n              />\n              <FieldError message={form.errors.is_active} />\n            </Field>\n          )}") : '';
+        $activeBlock = $hasIsActive ? ("          {mode === 'edit' && (\n            <Field id=\"is_active\" label=\"Estado activo\" error={form.errors.is_active}>\n              <ActiveField\n                checked={!!form.data.is_active}\n                onChange={(v) => form.setData('is_active', v)}\n                canToggle={true}\n                activeLabel=\"Registro activo\"\n                inactiveLabel=\"Registro inactivo\"\n              />\n            </Field>\n          )}") : '';
 
         return [
             implode("\n", $iface),

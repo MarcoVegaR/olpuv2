@@ -15,4 +15,38 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Marker: BEGIN AUTO-GENERATED CATALOG ROUTES (make:catalog)
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/catalogs/procedure-type', [\App\Http\Controllers\ProcedureTypeController::class, 'index'])->middleware('permission:catalogs.procedure-type.view')->name('catalogs.procedure-type.index');
+    Route::get('/catalogs/procedure-type/create', [\App\Http\Controllers\ProcedureTypeController::class, 'create'])->middleware('permission:catalogs.procedure-type.create')->name('catalogs.procedure-type.create');
+    Route::post('/catalogs/procedure-type', [\App\Http\Controllers\ProcedureTypeController::class, 'store'])->middleware('permission:catalogs.procedure-type.create')->name('catalogs.procedure-type.store');
+    Route::get('/catalogs/procedure-type/export', [\App\Http\Controllers\ProcedureTypeController::class, 'export'])->middleware('permission:catalogs.procedure-type.export')->name('catalogs.procedure-type.export');
+    Route::post('/catalogs/procedure-type/bulk', [\App\Http\Controllers\ProcedureTypeController::class, 'bulk'])->middleware('permission:catalogs.procedure-type.delete|catalogs.procedure-type.restore|catalogs.procedure-type.forceDelete|catalogs.procedure-type.setActive')->name('catalogs.procedure-type.bulk');
+    Route::get('/catalogs/procedure-type/selected', [\App\Http\Controllers\ProcedureTypeController::class, 'selected'])->middleware('permission:catalogs.procedure-type.view')->name('catalogs.procedure-type.selected');
+    Route::get('/catalogs/procedure-type/{procedure_type}', [\App\Http\Controllers\ProcedureTypeController::class, 'show'])->middleware('permission:catalogs.procedure-type.view')->name('catalogs.procedure-type.show');
+    Route::get('/catalogs/procedure-type/{procedure_type}/edit', [\App\Http\Controllers\ProcedureTypeController::class, 'edit'])->middleware('permission:catalogs.procedure-type.update')->name('catalogs.procedure-type.edit');
+    Route::put('/catalogs/procedure-type/{procedure_type}', [\App\Http\Controllers\ProcedureTypeController::class, 'update'])->middleware('permission:catalogs.procedure-type.update')->name('catalogs.procedure-type.update');
+    Route::patch('/catalogs/procedure-type/{procedure_type}/active', [\App\Http\Controllers\ProcedureTypeController::class, 'setActive'])->middleware('permission:catalogs.procedure-type.setActive')->name('catalogs.procedure-type.setActive');
+    Route::delete('/catalogs/procedure-type/{procedure_type}', [\App\Http\Controllers\ProcedureTypeController::class, 'destroy'])->middleware('permission:catalogs.procedure-type.delete')->name('catalogs.procedure-type.destroy');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/catalogs/requirement', [\App\Http\Controllers\RequirementController::class, 'index'])->middleware('permission:catalogs.requirement.view')->name('catalogs.requirement.index');
+    Route::get('/catalogs/requirement/create', [\App\Http\Controllers\RequirementController::class, 'create'])->middleware('permission:catalogs.requirement.create')->name('catalogs.requirement.create');
+    Route::post('/catalogs/requirement', [\App\Http\Controllers\RequirementController::class, 'store'])->middleware('permission:catalogs.requirement.create')->name('catalogs.requirement.store');
+    Route::get('/catalogs/requirement/export', [\App\Http\Controllers\RequirementController::class, 'export'])->middleware('permission:catalogs.requirement.export')->name('catalogs.requirement.export');
+    Route::post('/catalogs/requirement/bulk', [\App\Http\Controllers\RequirementController::class, 'bulk'])->middleware('permission:catalogs.requirement.delete|catalogs.requirement.restore|catalogs.requirement.forceDelete|catalogs.requirement.setActive')->name('catalogs.requirement.bulk');
+    Route::get('/catalogs/requirement/selected', [\App\Http\Controllers\RequirementController::class, 'selected'])->middleware('permission:catalogs.requirement.view')->name('catalogs.requirement.selected');
+    Route::get('/catalogs/requirement/{requirement}', [\App\Http\Controllers\RequirementController::class, 'show'])->middleware('permission:catalogs.requirement.view')->name('catalogs.requirement.show');
+    Route::get('/catalogs/requirement/{requirement}/edit', [\App\Http\Controllers\RequirementController::class, 'edit'])->middleware('permission:catalogs.requirement.update')->name('catalogs.requirement.edit');
+    Route::put('/catalogs/requirement/{requirement}', [\App\Http\Controllers\RequirementController::class, 'update'])->middleware('permission:catalogs.requirement.update')->name('catalogs.requirement.update');
+    Route::patch('/catalogs/requirement/{requirement}/active', [\App\Http\Controllers\RequirementController::class, 'setActive'])->middleware('permission:catalogs.requirement.setActive')->name('catalogs.requirement.setActive');
+    Route::delete('/catalogs/requirement/{requirement}', [\App\Http\Controllers\RequirementController::class, 'destroy'])->middleware('permission:catalogs.requirement.delete')->name('catalogs.requirement.destroy');
+});
 // Marker: END AUTO-GENERATED CATALOG ROUTES (make:catalog)
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::put('/catalogs/procedure-type/{procedure_type}/requirements', [\App\Http\Controllers\ProcedureTypeController::class, 'syncRequirements'])
+        ->middleware('permission:catalogs.procedure-type.update')
+        ->name('catalogs.procedure-type.requirements.sync');
+});

@@ -66,6 +66,16 @@ class DomainServiceProvider extends ServiceProvider
             \App\Contracts\Repositories\UserRepositoryInterface::class,
             \App\Repositories\UserRepository::class
         );
+        $this->app->bind(
+            \App\Contracts\Repositories\ProcedureTypeRepositoryInterface::class,
+            \App\Repositories\ProcedureTypeRepository::class
+        );
+
+        $this->app->bind(
+            \App\Contracts\Repositories\RequirementRepositoryInterface::class,
+            \App\Repositories\RequirementRepository::class
+        );
+
     }
 
     /**
@@ -125,6 +135,30 @@ class DomainServiceProvider extends ServiceProvider
         });
 
         // Register exporters
+        $this->app->bind(
+            \App\Contracts\Services\ProcedureTypeServiceInterface::class,
+            \App\Services\ProcedureTypeService::class
+        );
+
+        $this->app->bind(\App\Services\ProcedureTypeService::class, function (\Illuminate\Contracts\Container\Container $app) {
+            return new \App\Services\ProcedureTypeService(
+                $app->make(\App\Contracts\Repositories\ProcedureTypeRepositoryInterface::class),
+                $app
+            );
+        });
+
+        $this->app->bind(
+            \App\Contracts\Services\RequirementServiceInterface::class,
+            \App\Services\RequirementService::class
+        );
+
+        $this->app->bind(\App\Services\RequirementService::class, function (\Illuminate\Contracts\Container\Container $app) {
+            return new \App\Services\RequirementService(
+                $app->make(\App\Contracts\Repositories\RequirementRepositoryInterface::class),
+                $app
+            );
+        });
+
         $this->app->bind('exporter.csv', \App\Exports\CsvExporter::class);
         $this->app->bind('exporter.xlsx', \App\Exports\XlsxExporter::class);
         $this->app->bind('exporter.json', \App\Exports\JsonExporter::class);

@@ -8,7 +8,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { BookOpen, Folder, History, LayoutGrid, Shield, Users2 } from 'lucide-react';
 import AppLogo from './app-logo';
 
-function useMainNavItems(): NavItem[] {
+function useGeneralNavItems(): NavItem[] {
     const page = usePage<{ auth?: { can?: Record<string, boolean> } }>();
     const can = page.props.auth?.can || {};
 
@@ -26,11 +26,13 @@ function useMainNavItems(): NavItem[] {
     if (can['auditoria.view']) {
         items.push({ title: 'Auditoría', url: '/auditoria', icon: History });
     }
-
-    // Merge generated catalog items (idempotent, permission-aware)
-    items.push(...generatedMainNavItems(can));
-
     return items;
+}
+
+function useCatalogNavItems(): NavItem[] {
+    const page = usePage<{ auth?: { can?: Record<string, boolean> } }>();
+    const can = page.props.auth?.can || {};
+    return generatedMainNavItems(can);
 }
 
 const footerNavItems: NavItem[] = [
@@ -47,7 +49,8 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const mainNavItems = useMainNavItems();
+    const generalNavItems = useGeneralNavItems();
+    const catalogNavItems = useCatalogNavItems();
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -63,7 +66,8 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain label="General" items={generalNavItems} />
+                {catalogNavItems.length > 0 && <NavMain label="Catálogos" items={catalogNavItems} />}
             </SidebarContent>
 
             <SidebarFooter>

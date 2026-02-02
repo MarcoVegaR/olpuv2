@@ -30,6 +30,8 @@ class AuthServiceProvider extends ServiceProvider
         Role::class => RolePolicy::class,
         Audit::class => AuditPolicy::class,
         \App\Models\User::class => \App\Policies\UserPolicy::class,
+        \App\Models\ProcedureType::class => \App\Policies\ProcedureTypePolicy::class,
+        \App\Models\Requirement::class => \App\Policies\RequirementPolicy::class,
     ];
 
     /**

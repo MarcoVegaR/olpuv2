@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
-use App\Contracts\Repositories\{{ model }}RepositoryInterface;
-use App\Models\{{ model }};
+use App\Contracts\Repositories\RequirementRepositoryInterface;
+use App\Models\Requirement;
 use Illuminate\Database\Eloquent\Builder;
 
-class {{ model }}Repository extends BaseRepository implements {{ model }}RepositoryInterface
+class RequirementRepository extends BaseRepository implements RequirementRepositoryInterface
 {
-    protected string $modelClass = \App\Models\{{ model }}::class;
+    protected string $modelClass = \App\Models\Requirement::class;
 
     /**
      * Campos buscables por búsqueda global (LOWER LIKE).
@@ -46,7 +46,7 @@ class {{ model }}Repository extends BaseRepository implements {{ model }}Reposit
     /**
      * Mapa de filtros específicos del recurso.
      *
-     * @return array<string, callable(Builder<{{ model }}>, mixed): void>
+     * @return array<string, callable(Builder<Requirement>, mixed): void>
      */
     protected function filterMap(): array
     {
@@ -55,8 +55,12 @@ class {{ model }}Repository extends BaseRepository implements {{ model }}Reposit
                 $b->where('is_active', (bool) $v);
             },
             'created_between' => function (Builder $b, $v): void {
-                if (isset($v['from'])) $b->whereDate('created_at', '>=', $v['from']);
-                if (isset($v['to'])) $b->whereDate('created_at', '<=', $v['to']);
+                if (isset($v['from'])) {
+                    $b->whereDate('created_at', '>=', $v['from']);
+                }
+                if (isset($v['to'])) {
+                    $b->whereDate('created_at', '<=', $v['to']);
+                }
             },
             'code_like' => function (Builder $b, $v): void {
                 $b->whereRaw('LOWER(code) LIKE ?', ['%'.strtolower((string) $v).'%']);

@@ -34,5 +34,8 @@ env/
 __pycache__/
 *.py[cod]
 
+# Private notes (do not commit)
+notes/
+
 # MkDocs local override config (do not commit)
 mkdocs.local.yml

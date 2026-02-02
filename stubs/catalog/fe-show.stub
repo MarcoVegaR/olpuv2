@@ -11,7 +11,12 @@ import { ArrowLeft, Calendar, Hash, Pencil, Power, Trash2 } from 'lucide-react';
 
 interface Item {
   id: number | string;
-  // Dynamic shape depends on module
+  code?: string | null;
+  name?: string | null;
+  description?: string | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 

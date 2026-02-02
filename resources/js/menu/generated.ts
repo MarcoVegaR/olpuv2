@@ -1,4 +1,5 @@
 import type { NavItem } from '@/types';
+import { ClipboardList, Database, FileCheck } from 'lucide-react';
 
 /**
  * Generated main navigation items for catalogs (and similar modules).
@@ -11,11 +12,20 @@ import type { NavItem } from '@/types';
  * and filter items accordingly.
  */
 export function generatedMainNavItems(can: Record<string, boolean>): NavItem[] {
+    const iconByUrl: Record<string, NavItem['icon']> = {
+        '/catalogs/procedure-type': ClipboardList,
+        '/catalogs/requirement': FileCheck,
+    };
+
     // Keep this typed conversion so the core NavItem doesn't carry `perm`.
     const itemsWithPerm: Array<{ title: string; url: string; perm: string; icon?: NavItem['icon'] }> = [
         // Marker: BEGIN AUTO-GENERATED NAV ITEMS (make:catalog)
+        { title: 'Tipos de trámite', url: '/catalogs/procedure-type', perm: 'catalogs.procedure-type.view' },
+        { title: 'Requisitos', url: '/catalogs/requirement', perm: 'catalogs.requirement.view' },
         // Marker: END AUTO-GENERATED NAV ITEMS (make:catalog)
     ];
 
-    return itemsWithPerm.filter((it) => can[it.perm] !== false).map(({ perm: _perm, ...rest }) => rest satisfies NavItem);
+    return itemsWithPerm
+        .filter((it) => can[it.perm] !== false)
+        .map(({ perm: _perm, ...rest }) => ({ ...rest, icon: iconByUrl[rest.url] ?? rest.icon ?? Database }) satisfies NavItem);
 }

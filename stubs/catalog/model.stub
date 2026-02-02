@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -15,6 +16,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  */
 class {{ model }} extends Model implements AuditableContract
 {
+    /**
+     * @use HasFactory<Factory>
+     */
     use HasFactory, AuditableTrait{{ softDeletesTrait }};
 
     protected $table = '{{ table }}';

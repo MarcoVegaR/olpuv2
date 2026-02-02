@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
         // Seed test roles
         $this->call(RolesTestSeeder::class);
 
+        $this->call(TramitesCatalogSeeder::class);
+
         // Reset permission cache to avoid stale state in dev/CI
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

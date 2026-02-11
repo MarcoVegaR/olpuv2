@@ -114,6 +114,11 @@ class TramitesCatalogSeeder extends Seeder
                     'workflow_requires_inspection' => $inspectionMode === 'required',
                     'workflow_requires_technical_response' => true,
                     'workflow_requires_decision' => true,
+                    'reception_requires_all_recaudos' => true,
+                    'reception_requires_file_uploads' => false,
+                    'inspection_requires_photos' => $inspectionMode === 'required',
+                    'inspection_requires_report' => false,
+                    'decision_requires_document' => false,
                     'is_active' => true,
                     'sort_order' => $typeOrder,
                 ]

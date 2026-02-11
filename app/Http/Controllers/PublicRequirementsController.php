@@ -8,10 +8,12 @@ use App\Models\ProcedureType;
 use App\Models\Requirement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 class PublicRequirementsController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): InertiaResponse
     {
         $types = ProcedureType::query()
             ->where('is_active', true)
@@ -52,8 +54,8 @@ class PublicRequirementsController extends Controller
             ];
         })->values();
 
-        return response()->json([
-            'data' => $data,
+        return Inertia::render('public/requirements', [
+            'procedureTypes' => $data,
         ]);
     }
 

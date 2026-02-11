@@ -76,6 +76,16 @@ class DomainServiceProvider extends ServiceProvider
             \App\Repositories\RequirementRepository::class
         );
 
+        $this->app->bind(
+            \App\Contracts\Repositories\SolicitanteRepositoryInterface::class,
+            \App\Repositories\SolicitanteRepository::class
+        );
+
+        $this->app->bind(
+            \App\Contracts\Repositories\ExpedienteRepositoryInterface::class,
+            \App\Repositories\ExpedienteRepository::class
+        );
+
     }
 
     /**
@@ -155,6 +165,30 @@ class DomainServiceProvider extends ServiceProvider
         $this->app->bind(\App\Services\RequirementService::class, function (\Illuminate\Contracts\Container\Container $app) {
             return new \App\Services\RequirementService(
                 $app->make(\App\Contracts\Repositories\RequirementRepositoryInterface::class),
+                $app
+            );
+        });
+
+        $this->app->bind(
+            \App\Contracts\Services\SolicitanteServiceInterface::class,
+            \App\Services\SolicitanteService::class
+        );
+
+        $this->app->bind(\App\Services\SolicitanteService::class, function (\Illuminate\Contracts\Container\Container $app) {
+            return new \App\Services\SolicitanteService(
+                $app->make(\App\Contracts\Repositories\SolicitanteRepositoryInterface::class),
+                $app
+            );
+        });
+
+        $this->app->bind(
+            \App\Contracts\Services\ExpedienteServiceInterface::class,
+            \App\Services\ExpedienteService::class
+        );
+
+        $this->app->bind(\App\Services\ExpedienteService::class, function (\Illuminate\Contracts\Container\Container $app) {
+            return new \App\Services\ExpedienteService(
+                $app->make(\App\Contracts\Repositories\ExpedienteRepositoryInterface::class),
                 $app
             );
         });

@@ -39,6 +39,8 @@ export type ComboboxProps = {
   emptyText?: string
   disabled?: boolean
 
+  onQueryChange?: (q: string) => void
+
   // Chips
   chipVariant?: "badge" | "pill"
   chipClassName?: string
@@ -101,6 +103,8 @@ export function Combobox({
   searchPlaceholder = "Buscar…",
   emptyText = "Sin coincidencias",
   disabled,
+
+  onQueryChange,
   chipVariant = "pill",
   chipClassName,
   onRemoveChip,
@@ -370,6 +374,7 @@ export function Combobox({
           onValueChange={(val) => {
             debug('query change', val)
             setQuery(val)
+            onQueryChange?.(val)
           }}
         >
           <CommandInput

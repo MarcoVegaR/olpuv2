@@ -8,9 +8,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', \App\Http\Controllers\DashboardController::class)->name('dashboard');
 });
 
 require __DIR__.'/public.php';
@@ -27,4 +25,5 @@ require __DIR__.'/roles.php';
 require __DIR__.'/users.php';
 require __DIR__.'/auditoria.php';
 require __DIR__.'/catalogs.php';
+require __DIR__.'/procedures.php';
 require __DIR__.'/auth.php';

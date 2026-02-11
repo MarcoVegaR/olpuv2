@@ -23,6 +23,10 @@ class DatabaseSeeder extends Seeder
 
         $this->call(TramitesCatalogSeeder::class);
 
+        // Seed test solicitantes and expedientes
+        $this->call(SolicitantesSeeder::class);
+        $this->call(ExpedientesSeeder::class);
+
         // Reset permission cache to avoid stale state in dev/CI
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

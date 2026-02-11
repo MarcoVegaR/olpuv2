@@ -19,11 +19,15 @@ export function NavMain({ items = [], label = 'Boilerplate' }: { items: NavItem[
                                 ? 'text-indigo-600 dark:text-indigo-400'
                                 : item.title === 'Auditoría'
                                   ? 'text-orange-600 dark:text-orange-400'
-                                  : item.title === 'Tipos de trámite'
+                                  : item.title === 'Expedientes'
                                     ? 'text-emerald-600 dark:text-emerald-400'
-                                    : item.title === 'Requisitos'
-                                      ? 'text-teal-600 dark:text-teal-400'
-                                      : undefined;
+                                    : item.title === 'Solicitantes'
+                                      ? 'text-sky-600 dark:text-sky-400'
+                                      : item.title === 'Tipos de trámite'
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : item.title === 'Requisitos'
+                                          ? 'text-teal-600 dark:text-teal-400'
+                                          : undefined;
                     return (
                         <SidebarMenuItem key={item.title}>
                             <SidebarMenuButton asChild isActive={item.url === page.url}>

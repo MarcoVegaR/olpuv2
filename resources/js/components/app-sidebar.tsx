@@ -5,7 +5,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { generatedMainNavItems } from '@/menu/generated';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, History, LayoutGrid, Shield, Users2 } from 'lucide-react';
+import { BookOpen, FileText, Folder, History, LayoutGrid, Shield, Users2 } from 'lucide-react';
 import AppLogo from './app-logo';
 
 function useGeneralNavItems(): NavItem[] {
@@ -35,6 +35,22 @@ function useCatalogNavItems(): NavItem[] {
     return generatedMainNavItems(can);
 }
 
+function useProceduresNavItems(): NavItem[] {
+    const page = usePage<{ auth?: { can?: Record<string, boolean> } }>();
+    const can = page.props.auth?.can || {};
+
+    const items: NavItem[] = [];
+
+    if (can['expedientes.view']) {
+        items.push({ title: 'Expedientes', url: '/procedures/expedientes', icon: FileText });
+    }
+    if (can['solicitantes.view']) {
+        items.push({ title: 'Solicitantes', url: '/procedures/solicitantes', icon: Users2 });
+    }
+
+    return items;
+}
+
 const footerNavItems: NavItem[] = [
     {
         title: 'Repositorio',
@@ -50,6 +66,7 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const generalNavItems = useGeneralNavItems();
+    const proceduresNavItems = useProceduresNavItems();
     const catalogNavItems = useCatalogNavItems();
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -67,6 +84,7 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain label="General" items={generalNavItems} />
+                {proceduresNavItems.length > 0 && <NavMain label="Trámites" items={proceduresNavItems} />}
                 {catalogNavItems.length > 0 && <NavMain label="Catálogos" items={catalogNavItems} />}
             </SidebarContent>
 

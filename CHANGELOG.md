@@ -1,3 +1,9 @@
+# [1.1.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.0.0...v1.1.0) (2026-02-11)
+
+### Features
+
+- implement dashboard, expedientes, solicitantes and public modules ([7fcf7dc](https://github.com/MarcoVegaR/olpuv2/commit/7fcf7dce76f6bfadd71c68a327444edf1796f4d5))
+
 # 1.0.0 (2026-02-02)
 
 ### Features

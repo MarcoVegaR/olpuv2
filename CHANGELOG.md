@@ -1,3 +1,9 @@
+# [1.2.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.1.0...v1.2.0) (2026-02-12)
+
+### Features
+
+- expediente UI improvements - file previews, edit capability, index refinements ([e02fc36](https://github.com/MarcoVegaR/olpuv2/commit/e02fc36ab9bdd0f003506f700e46794a84e86ee5))
+
 # [1.1.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.0.0...v1.1.0) (2026-02-11)
 
 ### Features

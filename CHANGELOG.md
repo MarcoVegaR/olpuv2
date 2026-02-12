@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.0...v1.2.1) (2026-02-12)
+
+### Bug Fixes
+
+- guard window.matchMedia for SSR compatibility in use-appearance hook ([41d609b](https://github.com/MarcoVegaR/olpuv2/commit/41d609b015c98278d544a66e4e31695953fea656))
+
 # [1.2.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.1.0...v1.2.0) (2026-02-12)
 
 ### Features

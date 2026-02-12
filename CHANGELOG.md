@@ -1,3 +1,9 @@
+## [1.2.4](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.3...v1.2.4) (2026-02-12)
+
+### Bug Fixes
+
+- prevent ValidationException from being caught as 500 in production ([39b011d](https://github.com/MarcoVegaR/olpuv2/commit/39b011da3b89969f828d6b1f6d6a53a62e6e9373))
+
 ## [1.2.3](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.2...v1.2.3) (2026-02-12)
 
 ### Bug Fixes

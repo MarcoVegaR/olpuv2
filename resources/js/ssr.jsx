@@ -18,13 +18,15 @@ createServer((page) =>
         },
         setup: ({ App, props }) => {
             // Make Ziggy's route() available globally during SSR
-            const ziggy = props.initialPage.props.ziggy;
-            globalThis.route = (name, params, absolute, config) =>
-                routeFn(name, params, absolute, {
-                    ...ziggy,
-                    location: new URL(ziggy.url),
-                    ...config,
-                });
+            const ziggy = page.props.ziggy;
+            if (ziggy) {
+                globalThis.route = (name, params, absolute, config) =>
+                    routeFn(name, params, absolute, {
+                        ...ziggy,
+                        location: new URL(ziggy.url),
+                        ...config,
+                    });
+            }
 
             return <App {...props} />;
         },

@@ -329,9 +329,13 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                                                         return (
                                                             <label
                                                                 key={r.id}
-                                                                className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 transition-colors ${checked ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'hover:bg-muted/50'}`}
+                                                                className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 transition-colors ${checked ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30' : 'border-border hover:bg-muted/50'}`}
                                                             >
-                                                                <Checkbox checked={checked} onCheckedChange={(v) => toggleReq(r.id, !!v)} />
+                                                                <Checkbox
+                                                                    checked={checked}
+                                                                    onCheckedChange={(v) => toggleReq(r.id, !!v)}
+                                                                    className="border-muted-foreground/50 data-[state=checked]:border-emerald-600"
+                                                                />
                                                                 <span className="min-w-0 text-sm leading-tight">
                                                                     {r.name}
                                                                     {!r.is_required && (

@@ -103,7 +103,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Para errores 500 genéricos (no HttpException)
         $exceptions->renderable(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            if ($e instanceof \Illuminate\Validation\ValidationException
+                || $e instanceof \Illuminate\Auth\AuthenticationException) {
+                return null;
+            }
+
             if (($request->hasHeader('X-Inertia') || (bool) $request->attributes->get('_inertia_testing_view_mode')) && ! $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException && app()->environment('production')) {
+                report($e);
+
                 return \Inertia\Inertia::render('errors/500')->toResponse($request)->setStatusCode(500);
             }
 

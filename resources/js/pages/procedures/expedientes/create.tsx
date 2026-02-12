@@ -188,8 +188,9 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Recepción de expediente" />
 
-            <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-                <div className="mb-6 flex items-center justify-between gap-3">
+            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+                {/* Header */}
+                <div className="mb-4 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
                             <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -206,138 +207,153 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
 
                 <ErrorSummary errors={form.errors} />
 
-                <form onSubmit={onSubmit} className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Solicitante (Titular)</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-4 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <Field id="solicitante_id" label="Buscar solicitante" required error={errors.solicitante_id}>
-                                    <Combobox
-                                        options={solicitanteOptions}
-                                        value={form.data.solicitante_id ? String(form.data.solicitante_id) : ''}
-                                        onChange={(v) => form.setData('solicitante_id', v ? Number(v) : '')}
-                                        placeholder="Seleccione un solicitante"
-                                        searchPlaceholder="Buscar por nombre o documento…"
-                                        emptyText={solicitanteLoading ? 'Buscando…' : 'Sin coincidencias'}
-                                        onQueryChange={setSolicitanteQuery}
-                                    />
-                                </Field>
-                            </div>
+                <form onSubmit={onSubmit}>
+                    {/* ── Main layout: left form + right checklist ── */}
+                    <div className="grid gap-4 lg:grid-cols-5">
+                        {/* Left column: Solicitante + Datos (3/5) */}
+                        <div className="space-y-4 lg:col-span-3">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">Solicitante (Titular)</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <Field id="solicitante_id" label="Buscar solicitante" required error={errors.solicitante_id}>
+                                        <Combobox
+                                            options={solicitanteOptions}
+                                            value={form.data.solicitante_id ? String(form.data.solicitante_id) : ''}
+                                            onChange={(v) => form.setData('solicitante_id', v ? Number(v) : '')}
+                                            placeholder="Seleccione un solicitante"
+                                            searchPlaceholder="Buscar por nombre o documento…"
+                                            emptyText={solicitanteLoading ? 'Buscando…' : 'Sin coincidencias'}
+                                            onQueryChange={setSolicitanteQuery}
+                                        />
+                                    </Field>
 
-                            {selectedSolicitante && (
-                                <div className="bg-muted/30 rounded-md border p-3 text-sm sm:col-span-2">
-                                    <div className="font-medium">{selectedSolicitante.nombre_razon_social}</div>
-                                    <div className="text-muted-foreground font-mono text-xs">
-                                        {selectedSolicitante.tipo_documento}
-                                        {selectedSolicitante.numero_documento}
+                                    {selectedSolicitante && (
+                                        <div className="bg-muted/30 rounded-md border p-2.5 text-sm">
+                                            <div className="font-medium">{selectedSolicitante.nombre_razon_social}</div>
+                                            <div className="text-muted-foreground font-mono text-xs">
+                                                {selectedSolicitante.tipo_documento}
+                                                {selectedSolicitante.numero_documento}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">Datos del trámite</CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid gap-3 sm:grid-cols-2">
+                                    <Field id="procedure_type_id" label="Tipo de trámite" required error={form.errors.procedure_type_id}>
+                                        <Select
+                                            disabled={!form.data.solicitante_id}
+                                            value={form.data.procedure_type_id ? String(form.data.procedure_type_id) : ''}
+                                            onValueChange={(v) => form.setData('procedure_type_id', v ? Number(v) : '')}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Seleccione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {procedureTypes.map((t) => (
+                                                    <SelectItem key={t.id} value={String(t.id)}>
+                                                        {t.name} ({t.code})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </Field>
+
+                                    <Field id="numero_receptoria" label="N° receptoría" error={form.errors.numero_receptoria}>
+                                        <Input
+                                            disabled={!form.data.solicitante_id}
+                                            value={form.data.numero_receptoria}
+                                            onChange={(e) => form.setData('numero_receptoria', e.target.value)}
+                                        />
+                                    </Field>
+
+                                    <Field id="codigo_catastral" label="Código catastral" error={form.errors.codigo_catastral}>
+                                        <Input
+                                            disabled={!form.data.solicitante_id}
+                                            value={form.data.codigo_catastral}
+                                            onChange={(e) => form.setData('codigo_catastral', e.target.value)}
+                                        />
+                                    </Field>
+
+                                    <div className="sm:col-span-2">
+                                        <Field id="observaciones" label="Observaciones" error={form.errors.observaciones}>
+                                            <Textarea
+                                                disabled={!form.data.solicitante_id}
+                                                rows={2}
+                                                value={form.data.observaciones}
+                                                onChange={(e) => form.setData('observaciones', e.target.value)}
+                                            />
+                                        </Field>
                                     </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Datos del trámite</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-4 sm:grid-cols-2">
-                            <Field id="procedure_type_id" label="Tipo de trámite" required error={form.errors.procedure_type_id}>
-                                <Select
-                                    disabled={!form.data.solicitante_id}
-                                    value={form.data.procedure_type_id ? String(form.data.procedure_type_id) : ''}
-                                    onValueChange={(v) => form.setData('procedure_type_id', v ? Number(v) : '')}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {procedureTypes.map((t) => (
-                                            <SelectItem key={t.id} value={String(t.id)}>
-                                                {t.name} ({t.code})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </Field>
+                        {/* Right column: Checklist (2/5) */}
+                        <div className="lg:col-span-2">
+                            <Card className="lg:sticky lg:top-4">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">Checklist de recaudos</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {errors.physical_received_requirement_ids && (
+                                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                                            {errors.physical_received_requirement_ids}
+                                        </div>
+                                    )}
+                                    {!selectedType ? (
+                                        <div className="text-muted-foreground py-8 text-center text-sm">
+                                            Seleccione un tipo de trámite para ver sus recaudos.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            <div className="mb-2 flex items-center gap-2 border-b pb-2">
+                                                <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} />
+                                                <span className="text-sm font-medium">Seleccionar todos</span>
+                                                <span className="text-muted-foreground ml-auto text-xs">
+                                                    {form.data.physical_received_requirement_ids.length}/{selectedType.requirements.length}
+                                                </span>
+                                            </div>
+                                            <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
+                                                {selectedType.requirements
+                                                    .slice()
+                                                    .sort((a, b) => a.sort_order - b.sort_order)
+                                                    .map((r) => {
+                                                        const checked = form.data.physical_received_requirement_ids.includes(r.id);
+                                                        return (
+                                                            <label
+                                                                key={r.id}
+                                                                className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 transition-colors ${checked ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'hover:bg-muted/50'}`}
+                                                            >
+                                                                <Checkbox checked={checked} onCheckedChange={(v) => toggleReq(r.id, !!v)} />
+                                                                <span className="min-w-0 text-sm leading-tight">
+                                                                    {r.name}
+                                                                    {!r.is_required && (
+                                                                        <span className="text-muted-foreground ml-1 text-xs">(opcional)</span>
+                                                                    )}
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
 
-                            <Field id="numero_receptoria" label="N° receptoría" error={form.errors.numero_receptoria}>
-                                <Input
-                                    disabled={!form.data.solicitante_id}
-                                    value={form.data.numero_receptoria}
-                                    onChange={(e) => form.setData('numero_receptoria', e.target.value)}
-                                />
-                            </Field>
-
-                            <Field id="codigo_catastral" label="Código catastral" error={form.errors.codigo_catastral}>
-                                <Input
-                                    disabled={!form.data.solicitante_id}
-                                    value={form.data.codigo_catastral}
-                                    onChange={(e) => form.setData('codigo_catastral', e.target.value)}
-                                />
-                            </Field>
-
-                            <div className="sm:col-span-2">
-                                <Field id="observaciones" label="Observaciones" error={form.errors.observaciones}>
-                                    <Textarea
-                                        disabled={!form.data.solicitante_id}
-                                        value={form.data.observaciones}
-                                        onChange={(e) => form.setData('observaciones', e.target.value)}
-                                    />
-                                </Field>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Checklist de recaudos</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {errors.physical_received_requirement_ids && (
-                                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-                                    {errors.physical_received_requirement_ids}
-                                </div>
-                            )}
-                            {!selectedType ? (
-                                <div className="text-muted-foreground text-sm">Seleccione un tipo de trámite para ver sus recaudos.</div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="mb-1 flex items-center gap-2 border-b pb-2">
-                                        <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} />
-                                        <span className="text-sm font-medium">Seleccionar todos</span>
-                                        <span className="text-muted-foreground text-xs">
-                                            ({form.data.physical_received_requirement_ids.length}/{selectedType.requirements.length})
-                                        </span>
-                                    </div>
-                                    {selectedType.requirements
-                                        .slice()
-                                        .sort((a, b) => a.sort_order - b.sort_order)
-                                        .map((r) => {
-                                            const checked = form.data.physical_received_requirement_ids.includes(r.id);
-                                            return (
-                                                <div key={r.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
-                                                    <div className="min-w-0">
-                                                        <div className="font-medium">{r.name}</div>
-                                                        <div className="text-muted-foreground font-mono text-xs">{r.code}</div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox checked={checked} onCheckedChange={(v) => toggleReq(r.id, !!v)} />
-                                                        <span className="text-sm">Consignado</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <div className="flex justify-end">
-                        <Button type="submit" disabled={form.processing}>
+                    {/* Sticky submit footer */}
+                    <div className="bg-background/80 sticky bottom-0 z-10 mt-4 flex justify-end border-t py-3 backdrop-blur">
+                        <Button type="submit" size="lg" disabled={form.processing} className="px-8">
                             <Save className="h-4 w-4" />
-                            Crear
+                            Crear expediente
                         </Button>
                     </div>
                 </form>

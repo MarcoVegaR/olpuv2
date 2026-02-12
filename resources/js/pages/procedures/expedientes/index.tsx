@@ -15,7 +15,6 @@ import { ExpedienteFilters } from './filters';
 
 const STATUS_TABS: Array<{ value: string; label: string }> = [
     { value: '', label: 'Todos' },
-    { value: 'draft', label: 'Borrador' },
     { value: 'received', label: 'Recibido' },
     { value: 'pending_reviewer', label: 'Por revisor' },
     { value: 'pending_inspector', label: 'Por inspector' },
@@ -99,7 +98,7 @@ export default function ExpedientesIndex() {
         return [{ id: initialQuery.sort, desc: initialQuery.dir === 'desc' }];
     });
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-    const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+    const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ created_at: false });
     const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
     const [filters, setFilters] = React.useState<ExpedienteFilterValue>(initialQuery.filters);
     const [statusTab, setStatusTab] = React.useState<string>(initialQuery.filters.status ?? '');

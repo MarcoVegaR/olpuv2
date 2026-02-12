@@ -9,6 +9,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Download, Eye, MoreHorizontal, Power, QrCode } from 'lucide-react';
@@ -140,7 +141,20 @@ export const columns: ColumnDef<TExpedienteRow>[] = [
         enableSorting: false,
         cell: ({ row }) => {
             const t = (row.original as TExpedienteRow).procedure_type;
-            return <span className="text-sm">{t?.name ?? '—'}</span>;
+            if (!t) return '—';
+            return (
+                <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="block max-w-[180px] truncate text-sm">{t.name}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                            <p>{t.name}</p>
+                            <p className="text-muted-foreground text-xs">{t.code}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            );
         },
     },
     {
@@ -149,7 +163,22 @@ export const columns: ColumnDef<TExpedienteRow>[] = [
         enableSorting: false,
         cell: ({ row }) => {
             const s = (row.original as TExpedienteRow).solicitante;
-            return <span className="text-sm">{s?.nombre_razon_social ?? '—'}</span>;
+            if (!s) return '—';
+            return (
+                <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="block max-w-[160px] truncate text-sm">{s.nombre_razon_social}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                            <p>{s.nombre_razon_social}</p>
+                            <p className="text-muted-foreground text-xs">
+                                {s.tipo_documento}-{s.numero_documento}
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            );
         },
     },
     {
@@ -180,7 +209,22 @@ export const columns: ColumnDef<TExpedienteRow>[] = [
         },
     },
     { accessorKey: 'numero_receptoria', header: 'N° Receptoría', enableSorting: false },
-    { accessorKey: 'created_at', header: 'Creado', enableSorting: true },
+    {
+        accessorKey: 'created_at',
+        header: 'Creado',
+        enableSorting: true,
+        cell: ({ getValue }) => {
+            const raw = getValue() as string | null;
+            if (!raw) return '—';
+            const d = new Date(raw);
+            return (
+                <span className="text-sm whitespace-nowrap">
+                    {d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                    <span className="text-muted-foreground">{d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}</span>
+                </span>
+            );
+        },
+    },
     {
         id: 'actions',
         header: 'Acciones',

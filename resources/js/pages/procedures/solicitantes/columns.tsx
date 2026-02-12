@@ -152,7 +152,22 @@ export const columns: ColumnDef<TSolicitanteRow>[] = [
             );
         },
     },
-    { accessorKey: 'created_at', header: 'Creado', enableSorting: true },
+    {
+        accessorKey: 'created_at',
+        header: 'Creado',
+        enableSorting: true,
+        cell: ({ getValue }) => {
+            const raw = getValue() as string | null;
+            if (!raw) return '—';
+            const d = new Date(raw);
+            return (
+                <span className="text-sm whitespace-nowrap">
+                    {d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                    <span className="text-muted-foreground">{d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}</span>
+                </span>
+            );
+        },
+    },
     {
         id: 'actions',
         header: 'Acciones',

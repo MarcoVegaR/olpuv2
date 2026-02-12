@@ -11,6 +11,8 @@ use App\Http\Requests\ExpedienteIndexRequest;
 use App\Http\Requests\ExpedienteShowRequest;
 use App\Http\Requests\ExpedienteStoreRequest;
 use App\Models\Expediente;
+use App\Models\ExpedienteEvent;
+use App\Models\ExpedienteInspectionFile;
 use App\Models\ExpedienteRequirement;
 use App\Models\ExpedienteRequirementFile;
 use App\Models\ProcedureType;
@@ -167,6 +169,31 @@ class ExpedienteController extends BaseIndexController
             ->with('success', 'Expediente creado correctamente.');
     }
 
+    public function update(Request $request, Expediente $expediente): RedirectResponse
+    {
+        $this->authorize('update', $expediente);
+
+        $validated = $request->validate([
+            'solicitante_id' => ['required', 'integer', 'exists:solicitantes,id'],
+            'numero_receptoria' => ['nullable', 'string', 'max:100'],
+            'codigo_catastral' => ['nullable', 'string', 'max:100'],
+            'observaciones' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $expediente->update($validated);
+
+        ExpedienteEvent::query()->create([
+            'expediente_id' => $expediente->getKey(),
+            'type' => 'expediente_updated',
+            'description' => 'Datos del expediente actualizados',
+            'actor_id' => $request->user()?->getKey(),
+            'actor_name' => $request->user()?->getAttribute('name'),
+        ]);
+
+        return redirect()->route('expedientes.show', $expediente->getKey())
+            ->with('success', 'Expediente actualizado correctamente.');
+    }
+
     public function show(Request $request, Expediente $expediente): \Inertia\Response
     {
         $this->authorize('view', $expediente);
@@ -197,7 +224,7 @@ class ExpedienteController extends BaseIndexController
             ]);
         }
         $data = $this->serviceConcrete->showById($expediente->getKey(), $query);
-        $data['hasEditRoute'] = false;
+        $data['hasEditRoute'] = $request->user()?->can('update', $expediente) ?? false;
 
         $data['statusLabels'] = ExpedienteWorkflowService::statusLabels();
         $data['returnablePhases'] = $this->workflow->returnablePhases($expediente);
@@ -333,11 +360,39 @@ class ExpedienteController extends BaseIndexController
             abort(404);
         }
 
-        return Storage::disk((string) $expediente_requirement_file->getAttribute('disk'))
-            ->download(
-                (string) $expediente_requirement_file->getAttribute('path'),
-                (string) $expediente_requirement_file->getAttribute('original_name')
-            );
+        $disk = (string) $expediente_requirement_file->getAttribute('disk');
+        $path = (string) $expediente_requirement_file->getAttribute('path');
+        $name = (string) $expediente_requirement_file->getAttribute('original_name');
+
+        if ($request->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $name, [
+                'Content-Disposition' => 'inline; filename="'.$name.'"',
+            ]);
+        }
+
+        return Storage::disk($disk)->download($path, $name);
+    }
+
+    public function downloadInspectionFile(Request $request, Expediente $expediente, ExpedienteInspectionFile $file): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('filesView', $expediente);
+
+        $inspection = $file->inspection;
+        if (! $inspection || (int) $inspection->getAttribute('expediente_id') !== (int) $expediente->getKey()) {
+            abort(404);
+        }
+
+        $disk = (string) $file->getAttribute('disk');
+        $path = (string) $file->getAttribute('path');
+        $name = (string) $file->getAttribute('original_name');
+
+        if ($request->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $name, [
+                'Content-Disposition' => 'inline; filename="'.$name.'"',
+            ]);
+        }
+
+        return Storage::disk($disk)->download($path, $name);
     }
 
     public function deleteRequirementFile(Request $request, Expediente $expediente, ExpedienteRequirementFile $expediente_requirement_file): RedirectResponse
@@ -412,9 +467,9 @@ class ExpedienteController extends BaseIndexController
             'result' => ['required', 'string', 'in:favorable,unfavorable,with_observations'],
             'inspected_at' => ['required', 'date'],
             'photos' => ['nullable', 'array', 'max:20'],
-            'photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'photos.*' => ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', 'max:10240'],
             'reports' => ['nullable', 'array', 'max:5'],
-            'reports.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
+            'reports.*' => ['file', 'mimetypes:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'max:10240'],
         ]);
 
         /** @var array<\Illuminate\Http\UploadedFile> $photos */

@@ -85,6 +85,10 @@ Route::middleware(['auth', 'verified'])->prefix('procedures')->group(function ()
         ->middleware('permission:expedientes.view')
         ->name('expedientes.show');
 
+    Route::put('/expedientes/{expediente}', [ExpedienteController::class, 'update'])
+        ->middleware('permission:expedientes.update')
+        ->name('expedientes.update');
+
     Route::get('/expedientes/{expediente}/planilla', [ExpedienteController::class, 'planilla'])
         ->middleware('permission:expedientes.view')
         ->name('expedientes.planilla');
@@ -112,6 +116,10 @@ Route::middleware(['auth', 'verified'])->prefix('procedures')->group(function ()
     Route::delete('/expedientes/{expediente}/files/{expediente_requirement_file}', [ExpedienteController::class, 'deleteRequirementFile'])
         ->middleware('permission:expedientes.files.delete')
         ->name('expedientes.files.delete');
+
+    Route::get('/expedientes/{expediente}/inspection-files/{file}', [ExpedienteController::class, 'downloadInspectionFile'])
+        ->middleware('permission:expedientes.files.view')
+        ->name('expedientes.inspectionFiles.download');
 
     // Workflow actions
     Route::patch('/expedientes/{expediente}/assign-reviewer', [ExpedienteController::class, 'assignReviewer'])

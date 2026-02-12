@@ -34,6 +34,7 @@ class UsersSeeder extends Seeder
             'recepcionista' => [
                 'expedientes.view',
                 'expedientes.create',
+                'expedientes.update',
                 'expedientes.receive',
                 'expedientes.qr.download',
                 'expedientes.files.view',

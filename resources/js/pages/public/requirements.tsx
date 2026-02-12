@@ -175,10 +175,10 @@ export default function PublicRequirements({ procedureTypes }: Props) {
 
                 <main className="flex-1">
                     {/* Hero + Search */}
-                    <section className="from-muted/30 bg-gradient-to-b to-transparent pt-12 pb-10">
+                    <section className="bg-gradient-to-b from-blue-50 to-transparent pt-12 pb-10 dark:from-blue-950/20">
                         <div className="container mx-auto px-6 text-center">
                             <h1 className="text-foreground text-3xl font-bold tracking-tight sm:text-4xl">Requisitos y Recaudos</h1>
-                            <p className="text-muted-foreground mx-auto mt-3 max-w-xl text-lg">
+                            <p className="mx-auto mt-3 max-w-xl text-lg text-slate-600 dark:text-slate-400">
                                 Busque el trámite que desea realizar para conocer los documentos que necesita.
                             </p>
 
@@ -227,15 +227,15 @@ export default function PublicRequirements({ procedureTypes }: Props) {
                                 <p className="mt-1 text-base">Intente con otro término de búsqueda.</p>
                             </div>
                         ) : (
-                            <Card className="mx-auto max-w-4xl shadow-none">
+                            <Card className="mx-auto max-w-4xl shadow-sm">
                                 <CardContent className="p-0">
                                     <Accordion type="multiple" className="w-full">
                                         {filtered.map((pt) => (
                                             <AccordionItem key={pt.id} value={String(pt.id)} className="border-b px-4 last:border-b-0">
                                                 <AccordionTrigger className="hover:bg-muted/30 focus-visible:ring-primary/20 -mx-2 rounded-md px-2 text-left hover:no-underline focus-visible:ring-2 focus-visible:outline-hidden">
                                                     <div className="flex flex-1 items-center gap-3">
-                                                        <div className="bg-primary/10 flex size-10 shrink-0 items-center justify-center rounded-lg">
-                                                            <FileText className="text-primary size-5" />
+                                                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
+                                                            <FileText className="size-5 text-blue-600 dark:text-blue-400" />
                                                         </div>
                                                         <div className="min-w-0">
                                                             <span className="block text-base font-semibold">{pt.name}</span>
@@ -247,25 +247,33 @@ export default function PublicRequirements({ procedureTypes }: Props) {
                                                     </div>
                                                 </AccordionTrigger>
                                                 <AccordionContent className="pt-1 pb-6">
-                                                    {pt.description && pt.description.includes('|') ? (
-                                                        <div className="mb-4 flex flex-wrap gap-2">
-                                                            {pt.description
+                                                    {(() => {
+                                                        if (!pt.description) return null;
+                                                        const internalPatterns =
+                                                            /recaudos?\s*requeridos?|obligatorios?|opcionales?|inspección\s*:|resultado\s*:|vigencia\s*:/i;
+                                                        if (pt.description.includes('|')) {
+                                                            const visibleTags = pt.description
                                                                 .split('|')
                                                                 .map((t) => t.trim())
-                                                                .filter(Boolean)
-                                                                .map((t) => (
-                                                                    <Badge
-                                                                        key={t}
-                                                                        variant="outline"
-                                                                        className="text-muted-foreground bg-transparent text-xs font-medium"
-                                                                    >
-                                                                        {t}
-                                                                    </Badge>
-                                                                ))}
-                                                        </div>
-                                                    ) : pt.description ? (
-                                                        <p className="text-muted-foreground mb-4 text-base">{pt.description}</p>
-                                                    ) : null}
+                                                                .filter((t) => t && !internalPatterns.test(t));
+                                                            return visibleTags.length > 0 ? (
+                                                                <div className="mb-4 flex flex-wrap gap-2">
+                                                                    {visibleTags.map((t) => (
+                                                                        <Badge
+                                                                            key={t}
+                                                                            variant="outline"
+                                                                            className="text-muted-foreground bg-transparent text-xs font-medium"
+                                                                        >
+                                                                            {t}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </div>
+                                                            ) : null;
+                                                        }
+                                                        return !internalPatterns.test(pt.description) ? (
+                                                            <p className="text-muted-foreground mb-4 text-base">{pt.description}</p>
+                                                        ) : null;
+                                                    })()}
 
                                                     {/* Summary badges */}
                                                     {pt.requirements.length > 0 &&
@@ -274,12 +282,12 @@ export default function PublicRequirements({ procedureTypes }: Props) {
                                                             const opcionales = pt.requirements.length - obligatorios;
                                                             return (
                                                                 <div className="mb-4 flex flex-wrap gap-2">
-                                                                    <Badge variant="secondary" className="gap-1 px-2.5 py-1 text-xs font-medium">
+                                                                    <Badge className="gap-1 border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                                                                         <CheckCircle2 className="size-3.5" />
                                                                         {obligatorios} obligatorio{obligatorios !== 1 ? 's' : ''}
                                                                     </Badge>
                                                                     {opcionales > 0 && (
-                                                                        <Badge variant="outline" className="gap-1 px-2.5 py-1 text-xs font-medium">
+                                                                        <Badge className="gap-1 border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
                                                                             <Circle className="size-3.5" />
                                                                             {opcionales} opcional{opcionales !== 1 ? 'es' : ''}
                                                                         </Badge>
@@ -291,26 +299,26 @@ export default function PublicRequirements({ procedureTypes }: Props) {
                                                     {pt.requirements.length === 0 ? (
                                                         <p className="text-muted-foreground text-base italic">Sin recaudos registrados.</p>
                                                     ) : (
-                                                        <ul className="divide-border/60 divide-y">
+                                                        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                                             {pt.requirements.map((req, idx) => (
-                                                                <li key={req.id} className="flex items-start gap-3 py-3 text-[15px] leading-6">
-                                                                    <span className="text-muted-foreground mt-0.5 w-7 shrink-0 text-right font-mono text-sm">
+                                                                <li key={req.id} className="flex items-start gap-3 py-3.5 text-[15px] leading-6">
+                                                                    <span className="mt-0.5 w-7 shrink-0 text-right font-mono text-sm text-slate-400 dark:text-slate-500">
                                                                         {idx + 1}.
                                                                     </span>
                                                                     {req.is_required ? (
-                                                                        <CircleDot className="text-primary mt-0.5 size-4 shrink-0" />
+                                                                        <CircleDot className="mt-0.5 size-4 shrink-0 text-blue-500" />
                                                                     ) : (
-                                                                        <Circle className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                                                                        <Circle className="mt-0.5 size-4 shrink-0 text-slate-400 dark:text-slate-500" />
                                                                     )}
                                                                     <div className="max-w-[72ch] min-w-0">
                                                                         <span className="font-medium break-words">{req.name}</span>
                                                                         {!req.is_required && (
-                                                                            <Badge variant="outline" className="ml-2 text-xs">
+                                                                            <Badge className="ml-2 border-amber-200 bg-amber-50 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
                                                                                 Opcional
                                                                             </Badge>
                                                                         )}
                                                                         {req.description && (
-                                                                            <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                                                                            <p className="mt-0.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                                                                                 {req.description}
                                                                             </p>
                                                                         )}

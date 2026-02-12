@@ -57,26 +57,30 @@ class PublicExpedienteVerificationController extends Controller
             $statusLabels = ExpedienteWorkflowService::statusLabels();
             $status = (string) $expediente->getAttribute('status');
 
+            $terminalStatuses = ['completed', 'rejected', 'partial', 'suspended'];
+            $publicStatus = in_array($status, $terminalStatuses, true) ? 'completed' : $status;
+            $publicLabel = in_array($status, $terminalStatuses, true) ? 'Completado' : ($statusLabels[$status] ?? $status);
+
             return response()->json([
                 'data' => [
                     'tracking' => (string) $expediente->getAttribute('tracking'),
-                    'status' => $status,
-                    'statusLabel' => $statusLabels[$status] ?? $status,
+                    'status' => $publicStatus,
+                    'statusLabel' => $publicLabel,
                     'procedureType' => $expediente->procedureType?->getAttribute('name') ?? '—',
                     'solicitante' => $expediente->solicitante?->getAttribute('nombre_razon_social') ?? '—',
                     'documento' => ($expediente->solicitante?->getAttribute('tipo_documento') ?? '—').'-'.($expediente->solicitante?->getAttribute('numero_documento') ?? ''),
                     'receivedAt' => optional($expediente->getAttribute('received_at') ?? $expediente->getAttribute('created_at'))->format('d/m/Y H:i'),
-                    'decision' => $expediente->getAttribute('decision'),
-                    'decisionNotes' => $expediente->getAttribute('decision_notes'),
                     'completedAt' => optional($expediente->getAttribute('completed_at'))?->format('d/m/Y H:i'),
-                    'events' => $expediente->events->map(function ($event) {
-                        return [
-                            'id' => $event->getKey(),
-                            'type' => (string) $event->getAttribute('type'),
-                            'description' => (string) $event->getAttribute('description'),
-                            'createdAt' => optional($event->getAttribute('created_at'))->format('d/m/Y H:i'),
-                        ];
-                    })->values(),
+                    'events' => $expediente->events
+                        ->filter(fn ($event) => $event->getAttribute('type') !== 'decision_issued')
+                        ->map(function ($event) {
+                            return [
+                                'id' => $event->getKey(),
+                                'type' => (string) $event->getAttribute('type'),
+                                'description' => (string) $event->getAttribute('description'),
+                                'createdAt' => optional($event->getAttribute('created_at'))->format('d/m/Y H:i'),
+                            ];
+                        })->values(),
                 ],
             ]);
         }

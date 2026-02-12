@@ -6,27 +6,41 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import type { PageProps } from '@inertiajs/core';
 import { Head, Link, router } from '@inertiajs/react';
 import {
+    AlertTriangle,
     ArrowLeft,
+    CalendarDays,
+    Check,
     CheckCircle2,
+    ClipboardList,
     Clock,
     Download,
+    ExternalLink,
     Eye,
+    FileCheck,
     FileText,
+    FileUp,
     Gavel,
-    Image,
+    Hash,
+    MapPin,
+    Paperclip,
+    Pencil,
+    Phone,
     QrCode,
     RotateCcw,
     Search,
     Send,
     Trash2,
-    Upload,
+    User,
     UserCheck,
     Users,
+    X,
 } from 'lucide-react';
 import React from 'react';
 import { toast } from 'sonner';
@@ -119,6 +133,25 @@ interface Props extends PageProps {
     assignableReviewers?: SimpleUser[];
     assignableInspectors?: SimpleUser[];
     phaseWarnings?: string[];
+    hasEditRoute?: boolean;
+}
+
+/* ── Phase stepper definitions ────────────────────────────── */
+
+const PHASES = [
+    { key: 'received', label: 'Recibido' },
+    { key: 'pending_reviewer', label: 'Revisor' },
+    { key: 'pending_inspector', label: 'Inspector' },
+    { key: 'in_inspection', label: 'Inspección' },
+    { key: 'pending_response', label: 'Respuesta' },
+    { key: 'pending_decision', label: 'Decisión' },
+    { key: 'completed', label: 'Completado' },
+] as const;
+
+function phaseIndex(status: string): number {
+    const idx = PHASES.findIndex((p) => p.key === status);
+    if (status === 'completed' || status === 'rejected') return PHASES.length - 1;
+    return idx >= 0 ? idx : 0;
 }
 
 export default function ExpedienteShow({
@@ -129,9 +162,11 @@ export default function ExpedienteShow({
     assignableReviewers,
     assignableInspectors,
     phaseWarnings,
+    hasEditRoute,
 }: Props) {
     const can = (p: string) => !!auth?.can?.[p];
     const canReceive = can('expedientes.receive');
+    const canUpdate = !!hasEditRoute;
     const canFilesView = can('expedientes.files.view');
     const canFilesUpload = can('expedientes.files.upload') || can('expedientes.files.replace');
     const canFilesDelete = can('expedientes.files.delete');
@@ -168,7 +203,31 @@ export default function ExpedienteShow({
     const inspReportsRef = React.useRef<HTMLInputElement | null>(null);
     const decFilesRef = React.useRef<HTMLInputElement | null>(null);
 
+    // Edit form state
+    const [editing, setEditing] = React.useState(false);
+    const [editForm, setEditForm] = React.useState({
+        solicitante_id: item.solicitante?.id ?? '',
+        numero_receptoria: item.numero_receptoria ?? '',
+        codigo_catastral: item.codigo_catastral ?? '',
+        observaciones: item.observaciones ?? '',
+    });
+
     const base = `/procedures/expedientes/${item.id}`;
+
+    const handleSaveEdit = () => {
+        router.put(base, editForm as unknown as Record<string, string | number>, {
+            preserveScroll: true,
+            onStart: () => toast.loading('Guardando…', { id: 'edit' }),
+            onSuccess: () => {
+                toast.success('Expediente actualizado', { id: 'edit' });
+                setEditing(false);
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs).flat().join(' ') || 'Error al actualizar';
+                toast.error(msg, { id: 'edit' });
+            },
+        });
+    };
 
     const handleTogglePhysical = (er: ExpedienteRequirement, next: boolean) => {
         if (!canReceive) return;
@@ -239,13 +298,6 @@ export default function ExpedienteShow({
         });
     };
 
-    const statusBadgeVariant = (s: string) => {
-        if (s === 'completed') return 'success' as const;
-        if (s === 'rejected') return 'destructive' as const;
-        if (s === 'suspended' || s === 'partial') return 'outline' as const;
-        return 'secondary' as const;
-    };
-
     const resultLabel = (r: string) => {
         if (r === 'favorable') return 'Favorable';
         if (r === 'unfavorable') return 'Desfavorable';
@@ -258,333 +310,676 @@ export default function ExpedienteShow({
         return 'Suspendido';
     };
 
+    // Computed values for checklist progress
+    const totalReqs = requirements.length;
+    const receivedReqs = requirements.filter((r) => r.physical_received).length;
+    const progressPct = totalReqs > 0 ? Math.round((receivedReqs / totalReqs) * 100) : 0;
+    const currentPhase = phaseIndex(item.status);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Expediente ${item.tracking}`} />
 
-            <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="mb-6 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <div className="mb-2 flex items-center gap-3">
-                            <Link href="/procedures/expedientes" className="text-muted-foreground hover:text-foreground">
-                                <ArrowLeft className="h-5 w-5" />
-                            </Link>
-                            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-                                <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                                {item.tracking}
-                            </h1>
-                            <Badge variant={statusBadgeVariant(item.status)}>{statusLabel}</Badge>
+            <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+                {/* ── Header ──────────────────────────────────────── */}
+                <div className="mb-8">
+                    {/* Back link */}
+                    <Link
+                        href="/procedures/expedientes"
+                        className="text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1.5 text-base transition-colors"
+                    >
+                        <ArrowLeft className="h-5 w-5" />
+                        Volver a expedientes
+                    </Link>
+
+                    {/* Title row: name + status */}
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{item.procedure_type?.name ?? 'Expediente'}</h1>
+                            <p className="text-muted-foreground mt-1 font-mono text-sm">{item.tracking}</p>
                         </div>
-                        <p className="text-muted-foreground text-sm">{item.procedure_type?.name ?? '—'}</p>
+                        <div
+                            className={cn(
+                                'mt-1 shrink-0 rounded-xl px-5 py-2.5 text-base font-bold',
+                                item.status === 'completed' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+                                item.status === 'rejected' && 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+                                (item.status === 'suspended' || item.status === 'partial') &&
+                                    'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+                                !['completed', 'rejected', 'suspended', 'partial'].includes(item.status) &&
+                                    'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                            )}
+                        >
+                            {statusLabel}
+                        </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" asChild>
+
+                    {/* Quick action buttons */}
+                    <div className="mt-4 flex flex-wrap gap-3">
+                        {canUpdate && (
+                            <Button variant="outline" size="lg" className="text-base" onClick={() => setEditing((v) => !v)}>
+                                {editing ? <X className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
+                                {editing ? 'Cancelar edición' : 'Editar datos'}
+                            </Button>
+                        )}
+                        <Button variant="outline" size="lg" className="text-base" asChild>
                             <a href={`${base}/planilla`} target="_blank" rel="noreferrer">
-                                <Download className="h-4 w-4" /> Planilla
+                                <Download className="h-5 w-5" /> Descargar Planilla
                             </a>
                         </Button>
                         {canQr && (
-                            <Button variant="outline" asChild>
+                            <Button variant="outline" size="lg" className="text-base" asChild>
                                 <a href={`${base}/qr`}>
-                                    <QrCode className="h-4 w-4" /> QR
+                                    <QrCode className="h-5 w-5" /> Descargar QR
                                 </a>
                             </Button>
                         )}
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-3">
-                    {/* Left column */}
-                    <div className="space-y-6 lg:col-span-1">
-                        {/* Solicitante */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">Solicitante</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <div className="text-sm font-medium">{item.solicitante?.nombre_razon_social ?? '—'}</div>
-                                <div className="text-muted-foreground text-sm">
-                                    {(item.solicitante?.tipo_documento ?? '—') + '-' + (item.solicitante?.numero_documento ?? '')}
-                                </div>
-                                <div className="text-muted-foreground text-sm">{item.solicitante?.telefono ?? '—'}</div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Datos */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">Datos</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <DataRow label="N° Receptoría" value={item.numero_receptoria} />
-                                <DataRow label="Código catastral" value={item.codigo_catastral} />
-                            </CardContent>
-                        </Card>
-
-                        {/* Asignaciones */}
-                        {(item.reviewer || item.inspector) && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2 text-base">
-                                        <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Asignaciones
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    {item.reviewer && <DataRow label="Revisor" value={item.reviewer.name} />}
-                                    {item.inspector && <DataRow label="Inspector" value={item.inspector.name} />}
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Decision info */}
-                        {item.decision && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2 text-base">
-                                        <Gavel className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Decisión
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <DataRow label="Resultado" value={decisionLabel(item.decision)} />
-                                    {item.decision_user && <DataRow label="Emitida por" value={item.decision_user.name} />}
-                                    {item.decision_at && <DataRow label="Fecha" value={fmtDate(item.decision_at)} />}
-                                    {item.decision_notes && (
-                                        <div className="mt-2 rounded bg-gray-50 p-2 text-sm dark:bg-gray-800/50">{item.decision_notes}</div>
-                                    )}
-                                    {item.valid_from && <DataRow label="Vigencia" value={`${item.valid_from} — ${item.valid_until ?? '?'}`} />}
-                                    {(item.decision_files ?? []).length > 0 && (
-                                        <div className="mt-2 space-y-1">
-                                            <span className="text-muted-foreground text-xs">Documentos adjuntos:</span>
-                                            {(item.decision_files ?? []).map((df) => (
-                                                <div key={df.id} className="text-sm">
-                                                    {df.original_name}
-                                                </div>
-                                            ))}
+                {/* ── Progress Stepper ────────────────────────────── */}
+                <Card className="mb-8">
+                    <CardContent className="px-4 py-5 sm:px-6">
+                        <h2 className="mb-4 text-center text-lg font-semibold">Progreso del trámite</h2>
+                        <div className="flex items-center justify-between">
+                            {PHASES.map((phase, idx) => {
+                                const isDone = idx < currentPhase;
+                                const isCurrent = idx === currentPhase;
+                                const isRejected = item.status === 'rejected' && idx === PHASES.length - 1;
+                                return (
+                                    <React.Fragment key={phase.key}>
+                                        {idx > 0 && (
+                                            <div
+                                                className={cn(
+                                                    'hidden h-1.5 flex-1 rounded-full sm:block',
+                                                    isDone ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700',
+                                                )}
+                                            />
+                                        )}
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div
+                                                className={cn(
+                                                    'flex h-10 w-10 items-center justify-center rounded-full text-base font-bold transition-colors sm:h-11 sm:w-11',
+                                                    isDone && 'bg-emerald-500 text-white shadow-md',
+                                                    isCurrent && !isRejected && 'ring-primary/30 bg-primary text-primary-foreground shadow-md ring-4',
+                                                    isCurrent &&
+                                                        isRejected &&
+                                                        'bg-destructive text-destructive-foreground shadow-md ring-4 ring-red-200 dark:ring-red-900',
+                                                    !isDone && !isCurrent && 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
+                                                )}
+                                            >
+                                                {isDone ? <Check className="h-5 w-5" /> : idx + 1}
+                                            </div>
+                                            <span
+                                                className={cn(
+                                                    'hidden text-center text-xs font-medium sm:block sm:text-base',
+                                                    isDone && 'text-emerald-600 dark:text-emerald-400',
+                                                    isCurrent && 'text-primary font-bold',
+                                                    !isDone && !isCurrent && 'text-muted-foreground',
+                                                )}
+                                            >
+                                                {phase.label}
+                                            </span>
                                         </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                        {/* Mobile: show current phase name */}
+                        <p className="text-primary mt-3 text-center text-base font-semibold sm:hidden">Paso actual: {PHASES[currentPhase]?.label}</p>
+                    </CardContent>
+                </Card>
+
+                {/* ── Phase warnings ──────────────────────────────── */}
+                {(phaseWarnings ?? []).length > 0 && (
+                    <div className="mb-8 rounded-xl border-2 border-amber-300 bg-amber-50 p-5 dark:border-amber-700 dark:bg-amber-950/30">
+                        <div className="mb-2 flex items-center gap-3 text-lg font-bold text-amber-800 dark:text-amber-300">
+                            <AlertTriangle className="h-6 w-6" />
+                            Requisitos pendientes para avanzar
+                        </div>
+                        <ul className="list-inside list-disc space-y-1.5 text-base text-amber-700 dark:text-amber-400">
+                            {(phaseWarnings ?? []).map((w, i) => (
+                                <li key={i}>{w}</li>
+                            ))}
+                        </ul>
                     </div>
+                )}
 
-                    {/* Right column */}
-                    <div className="space-y-6 lg:col-span-2">
-                        {/* Phase validation warnings */}
-                        {(phaseWarnings ?? []).length > 0 && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
-                                    <Clock className="h-4 w-4" /> Requisitos pendientes para avanzar
+                {/* ── Inline Edit Form ──────────────────────────── */}
+                {editing && canUpdate && (
+                    <Card className="mb-8 border-2 border-blue-300 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Pencil className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                Editar datos del expediente
+                            </CardTitle>
+                            <p className="text-muted-foreground text-sm">Solo disponible mientras el expediente está en fase «Recibido».</p>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="sm:col-span-2">
+                                    <Label className="mb-1.5 block text-sm font-medium">Solicitante</Label>
+                                    <div className="flex items-center gap-3 rounded-md border bg-gray-50 px-3 py-2.5 dark:bg-gray-800/50">
+                                        <User className="text-muted-foreground h-4 w-4 shrink-0" />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-medium">{item.solicitante?.nombre_razon_social ?? '—'}</div>
+                                            <div className="text-muted-foreground text-xs">
+                                                {item.solicitante?.tipo_documento}-{item.solicitante?.numero_documento}
+                                            </div>
+                                        </div>
+                                        <Input
+                                            type="number"
+                                            className="w-20 text-center text-xs"
+                                            value={editForm.solicitante_id}
+                                            onChange={(e) =>
+                                                setEditForm((f) => ({ ...f, solicitante_id: e.target.value ? Number(e.target.value) : '' }))
+                                            }
+                                            title="ID del solicitante (cambiar solo si es necesario)"
+                                        />
+                                    </div>
                                 </div>
-                                <ul className="list-inside list-disc space-y-1 text-sm text-amber-700 dark:text-amber-400">
-                                    {(phaseWarnings ?? []).map((w, i) => (
-                                        <li key={i}>{w}</li>
-                                    ))}
-                                </ul>
+                                <div>
+                                    <Label className="mb-1.5 block text-sm font-medium">N° Receptoría</Label>
+                                    <Input
+                                        value={editForm.numero_receptoria}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, numero_receptoria: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="mb-1.5 block text-sm font-medium">Código catastral</Label>
+                                    <Input
+                                        value={editForm.codigo_catastral}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, codigo_catastral: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <Label className="mb-1.5 block text-sm font-medium">Observaciones</Label>
+                                    <Textarea
+                                        rows={2}
+                                        value={editForm.observaciones}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, observaciones: e.target.value }))}
+                                    />
+                                </div>
                             </div>
-                        )}
+                            <div className="mt-4 flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setEditing(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button onClick={handleSaveEdit}>
+                                    <Check className="h-4 w-4" /> Guardar cambios
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
-                        {/* Workflow action panel */}
-                        <WorkflowActions
-                            status={item.status}
-                            canAssignReviewer={canAssignReviewer}
-                            canAssignInspector={canAssignInspector}
-                            canInspection={canInspection}
-                            canResponse={canResponse}
-                            canDecision={canDecision}
-                            canReturn={canReturn}
-                            assignableReviewers={assignableReviewers ?? []}
-                            assignableInspectors={assignableInspectors ?? []}
-                            returnablePhases={returnablePhases ?? []}
-                            reviewerId={reviewerId}
-                            setReviewerId={setReviewerId}
-                            inspectorId={inspectorId}
-                            setInspectorId={setInspectorId}
-                            inspForm={inspForm}
-                            setInspForm={setInspForm}
-                            responseContent={responseContent}
-                            setResponseContent={setResponseContent}
-                            decForm={decForm}
-                            setDecForm={setDecForm}
-                            returnForm={returnForm}
-                            setReturnForm={setReturnForm}
-                            submitting={submitting}
-                            inspPhotosRef={inspPhotosRef}
-                            inspReportsRef={inspReportsRef}
-                            decFilesRef={decFilesRef}
-                            onAssignReviewer={() => patchAction(`${base}/assign-reviewer`, { reviewer_id: Number(reviewerId) }, 'Revisor asignado')}
-                            onAssignInspector={() =>
-                                patchAction(`${base}/assign-inspector`, { inspector_id: Number(inspectorId) }, 'Inspector asignado')
-                            }
-                            onStartInspection={() => patchAction(`${base}/start-inspection`, {}, 'Inspección iniciada')}
-                            onSubmitInspection={() => {
-                                const fd: Record<string, unknown> = { ...inspForm };
-                                const photos = inspPhotosRef.current?.files;
-                                const reports = inspReportsRef.current?.files;
-                                if (photos?.length) fd.photos = Array.from(photos);
-                                if (reports?.length) fd.reports = Array.from(reports);
-                                postAction(`${base}/inspection`, fd, 'Inspección registrada');
-                            }}
-                            onSubmitResponse={() => postAction(`${base}/response`, { content: responseContent }, 'Respuesta técnica enviada')}
-                            onIssueDecision={() => {
-                                const fd: Record<string, unknown> = { ...decForm };
-                                const files = decFilesRef.current?.files;
-                                if (files?.length) fd.files = Array.from(files);
-                                patchAction(`${base}/decision`, fd, 'Decisión emitida');
-                            }}
-                            onReturn={() => patchAction(`${base}/return`, returnForm, 'Expediente devuelto')}
-                        />
+                {/* ── Workflow Actions (prominent) ────────────────── */}
+                <WorkflowActions
+                    status={item.status}
+                    canAssignReviewer={canAssignReviewer}
+                    canAssignInspector={canAssignInspector}
+                    canInspection={canInspection}
+                    canResponse={canResponse}
+                    canDecision={canDecision}
+                    canReturn={canReturn}
+                    assignableReviewers={assignableReviewers ?? []}
+                    assignableInspectors={assignableInspectors ?? []}
+                    returnablePhases={returnablePhases ?? []}
+                    reviewerId={reviewerId}
+                    setReviewerId={setReviewerId}
+                    inspectorId={inspectorId}
+                    setInspectorId={setInspectorId}
+                    inspForm={inspForm}
+                    setInspForm={setInspForm}
+                    responseContent={responseContent}
+                    setResponseContent={setResponseContent}
+                    decForm={decForm}
+                    setDecForm={setDecForm}
+                    returnForm={returnForm}
+                    setReturnForm={setReturnForm}
+                    submitting={submitting}
+                    inspPhotosRef={inspPhotosRef}
+                    inspReportsRef={inspReportsRef}
+                    decFilesRef={decFilesRef}
+                    onAssignReviewer={() => patchAction(`${base}/assign-reviewer`, { reviewer_id: Number(reviewerId) }, 'Revisor asignado')}
+                    onAssignInspector={() => patchAction(`${base}/assign-inspector`, { inspector_id: Number(inspectorId) }, 'Inspector asignado')}
+                    onStartInspection={() => patchAction(`${base}/start-inspection`, {}, 'Inspección iniciada')}
+                    onSubmitInspection={() => {
+                        const fd: Record<string, unknown> = { ...inspForm };
+                        const photos = inspPhotosRef.current?.files;
+                        const reports = inspReportsRef.current?.files;
+                        if (photos?.length) fd.photos = Array.from(photos);
+                        if (reports?.length) fd.reports = Array.from(reports);
+                        postAction(`${base}/inspection`, fd, 'Inspección registrada');
+                    }}
+                    onSubmitResponse={() => postAction(`${base}/response`, { content: responseContent }, 'Respuesta técnica enviada')}
+                    onIssueDecision={() => {
+                        const fd: Record<string, unknown> = { ...decForm };
+                        const files = decFilesRef.current?.files;
+                        if (files?.length) fd.files = Array.from(files);
+                        patchAction(`${base}/decision`, fd, 'Decisión emitida');
+                    }}
+                    onReturn={() => patchAction(`${base}/return`, returnForm, 'Expediente devuelto')}
+                />
 
-                        {/* Inspection info card */}
-                        {item.latest_inspection && (
-                            <Card>
-                                <CardHeader>
+                {/* ── Tabbed Content ────────────────────────────── */}
+                <Tabs defaultValue="info" className="w-full">
+                    <TabsList className="mb-4 w-full justify-start">
+                        <TabsTrigger value="info" className="gap-1.5 text-sm">
+                            <ClipboardList className="h-4 w-4" /> Información
+                        </TabsTrigger>
+                        <TabsTrigger value="recaudos" className="gap-1.5 text-sm">
+                            <FileCheck className="h-4 w-4" /> Recaudos
+                            {totalReqs > 0 && (
+                                <Badge variant="secondary" className="ml-1 text-xs">
+                                    {receivedReqs}/{totalReqs}
+                                </Badge>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="historial" className="gap-1.5 text-sm">
+                            <Clock className="h-4 w-4" /> Historial
+                        </TabsTrigger>
+                    </TabsList>
+
+                    {/* ── Tab: Información ──────────────────────────── */}
+                    <TabsContent value="info">
+                        <div className="grid gap-4 md:grid-cols-2">
+                            {/* Solicitante */}
+                            <Card className="border-l-4 border-l-blue-500">
+                                <CardHeader className="pb-2">
                                     <CardTitle className="flex items-center gap-2 text-base">
-                                        <Search className="h-4 w-4 text-teal-600 dark:text-teal-400" /> Inspección
+                                        <User className="h-4 w-4 text-blue-500" /> Solicitante
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <DataRow label="Resultado" value={resultLabel(item.latest_inspection.result)} />
-                                    {item.latest_inspection.inspected_at && (
-                                        <DataRow label="Fecha de inspección" value={item.latest_inspection.inspected_at} />
-                                    )}
-                                    <div className="rounded bg-gray-50 p-2 text-sm whitespace-pre-wrap dark:bg-gray-800/50">
-                                        {item.latest_inspection.observations}
+                                <CardContent className="space-y-2 text-sm">
+                                    <div className="text-base font-semibold">{item.solicitante?.nombre_razon_social ?? '—'}</div>
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                                        {(item.solicitante?.tipo_documento ?? '—') + '-' + (item.solicitante?.numero_documento ?? '')}
                                     </div>
-                                    {item.latest_inspection.files.length > 0 && (
-                                        <div className="space-y-1">
-                                            <span className="text-muted-foreground text-xs">Archivos:</span>
-                                            {item.latest_inspection.files.map((f) => (
-                                                <div key={f.id} className="flex items-center gap-2 text-sm">
-                                                    {f.type === 'photo' ? <Image className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
-                                                    {f.original_name}
-                                                    <span className="text-muted-foreground text-xs">({Math.round(f.size / 1024)} KB)</span>
-                                                </div>
-                                            ))}
+                                    {item.solicitante?.telefono && (
+                                        <div className="flex items-center gap-2">
+                                            <Phone className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                                            {item.solicitante.telefono}
                                         </div>
                                     )}
                                 </CardContent>
                             </Card>
-                        )}
 
-                        {/* Response info card */}
-                        {item.latest_response && (
-                            <Card>
-                                <CardHeader>
+                            {/* Datos del expediente */}
+                            <Card className="border-l-4 border-l-emerald-500">
+                                <CardHeader className="pb-2">
                                     <CardTitle className="flex items-center gap-2 text-base">
-                                        <Send className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Respuesta Técnica
+                                        <ClipboardList className="h-4 w-4 text-emerald-500" /> Datos del expediente
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-2">
-                                    {item.latest_response.reviewer && <DataRow label="Revisor" value={item.latest_response.reviewer.name} />}
-                                    {item.latest_response.submitted_at && (
-                                        <DataRow label="Fecha" value={fmtDate(item.latest_response.submitted_at)} />
+                                <CardContent className="space-y-2 text-sm">
+                                    <InfoRow icon={<Hash className="h-3.5 w-3.5" />} label="N° Receptoría" value={item.numero_receptoria} />
+                                    <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} label="Código catastral" value={item.codigo_catastral} />
+                                    {item.observaciones && (
+                                        <div className="rounded-md bg-gray-50 p-2.5 text-sm dark:bg-gray-800/50">
+                                            <span className="text-muted-foreground text-xs font-medium">Observaciones:</span>
+                                            <p className="mt-0.5">{item.observaciones}</p>
+                                        </div>
                                     )}
-                                    <div className="rounded bg-gray-50 p-2 text-sm whitespace-pre-wrap dark:bg-gray-800/50">
-                                        {item.latest_response.content}
-                                    </div>
                                 </CardContent>
                             </Card>
-                        )}
 
-                        {/* Checklist */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">Checklist de recaudos</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                {requirements.length === 0 ? (
-                                    <div className="text-muted-foreground text-sm">Sin recaudos asociados.</div>
-                                ) : (
-                                    requirements.map((er) => {
-                                        const requiredLabel = er.is_required ? 'Requerido' : 'Opcional';
-                                        const file = er.current_file;
-                                        return (
-                                            <div key={er.id} className="rounded-md border p-3">
-                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="font-medium">{er.requirement?.name ?? '—'}</div>
-                                                            <Badge variant={er.is_required ? 'default' : 'secondary'}>{requiredLabel}</Badge>
-                                                        </div>
-                                                        <div className="text-muted-foreground font-mono text-xs">{er.requirement?.code ?? ''}</div>
+                            {/* Asignaciones */}
+                            {(item.reviewer || item.inspector) && (
+                                <Card className="border-l-4 border-l-violet-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <Users className="h-4 w-4 text-violet-500" /> Personas asignadas
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2 text-sm">
+                                        {item.reviewer && (
+                                            <InfoRow icon={<UserCheck className="h-3.5 w-3.5" />} label="Revisor" value={item.reviewer.name} />
+                                        )}
+                                        {item.inspector && (
+                                            <InfoRow icon={<Search className="h-3.5 w-3.5" />} label="Inspector" value={item.inspector.name} />
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Decision */}
+                            {item.decision && (
+                                <Card
+                                    className={cn(
+                                        'border-l-4',
+                                        item.decision === 'approved' && 'border-l-emerald-500',
+                                        item.decision === 'rejected' && 'border-l-red-500',
+                                        (item.decision === 'partial' || item.decision === 'suspended') && 'border-l-amber-500',
+                                    )}
+                                >
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <Gavel className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Decisión final
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2 text-sm">
+                                        <div className="text-base font-bold">{decisionLabel(item.decision)}</div>
+                                        {item.decision_user && (
+                                            <InfoRow icon={<User className="h-3.5 w-3.5" />} label="Emitida por" value={item.decision_user.name} />
+                                        )}
+                                        {item.decision_at && (
+                                            <InfoRow
+                                                icon={<CalendarDays className="h-3.5 w-3.5" />}
+                                                label="Fecha"
+                                                value={fmtDate(item.decision_at)}
+                                            />
+                                        )}
+                                        {item.decision_notes && (
+                                            <div className="rounded-md bg-gray-50 p-2.5 dark:bg-gray-800/50">{item.decision_notes}</div>
+                                        )}
+                                        {item.valid_from && (
+                                            <InfoRow
+                                                icon={<CalendarDays className="h-3.5 w-3.5" />}
+                                                label="Vigencia"
+                                                value={`${item.valid_from} — ${item.valid_until ?? '?'}`}
+                                            />
+                                        )}
+                                        {(item.decision_files ?? []).length > 0 && (
+                                            <div className="space-y-1">
+                                                <span className="text-muted-foreground text-xs font-medium">Documentos adjuntos:</span>
+                                                {(item.decision_files ?? []).map((df) => (
+                                                    <div key={df.id} className="flex items-center gap-1.5">
+                                                        <Paperclip className="text-muted-foreground h-3.5 w-3.5" />
+                                                        {df.original_name}
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            disabled={!canReceive}
-                                                            checked={er.physical_received}
-                                                            onCheckedChange={(v) => handleTogglePhysical(er, !!v)}
-                                                        />
-                                                        <span className="text-sm">Consignado</span>
-                                                    </div>
-                                                </div>
-                                                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                    <div className="text-sm">
-                                                        {canFilesView && file ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <a
-                                                                    className="text-sky-600 hover:underline dark:text-sky-400"
-                                                                    href={`${base}/files/${file.id}`}
-                                                                >
-                                                                    {file.original_name}
-                                                                </a>
-                                                                <span className="text-muted-foreground text-xs">
-                                                                    ({Math.round((file.size ?? 0) / 1024)} KB)
-                                                                </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Inspection */}
+                            {item.latest_inspection && (
+                                <Card className="border-l-4 border-l-teal-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <Search className="h-4 w-4 text-teal-500" /> Resultado de la inspección
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2 text-sm">
+                                        <div className="text-base font-bold">{resultLabel(item.latest_inspection.result)}</div>
+                                        {item.latest_inspection.inspected_at && (
+                                            <InfoRow
+                                                icon={<CalendarDays className="h-3.5 w-3.5" />}
+                                                label="Fecha"
+                                                value={fmtDate(item.latest_inspection.inspected_at)}
+                                            />
+                                        )}
+                                        <div className="rounded-md bg-gray-50 p-2.5 whitespace-pre-wrap dark:bg-gray-800/50">
+                                            {item.latest_inspection.observations}
+                                        </div>
+                                        {(() => {
+                                            const photos = item.latest_inspection!.files.filter((f) => f.type === 'photo');
+                                            const reports = item.latest_inspection!.files.filter((f) => f.type === 'report');
+                                            return (
+                                                <>
+                                                    {photos.length > 0 && (
+                                                        <div>
+                                                            <span className="text-muted-foreground text-xs font-medium">
+                                                                Fotos ({photos.length}):
+                                                            </span>
+                                                            <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                                                {photos.map((f) => (
+                                                                    <a
+                                                                        key={f.id}
+                                                                        href={`${base}/inspection-files/${f.id}?inline=1`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="group relative block aspect-square overflow-hidden rounded-md border bg-gray-100 dark:bg-gray-800"
+                                                                    >
+                                                                        <img
+                                                                            src={`${base}/inspection-files/${f.id}?inline=1`}
+                                                                            alt={f.original_name}
+                                                                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                                                            loading="lazy"
+                                                                        />
+                                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                                                                            <ExternalLink className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                                                        </div>
+                                                                    </a>
+                                                                ))}
                                                             </div>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">Sin archivo</span>
-                                                        )}
+                                                        </div>
+                                                    )}
+                                                    {reports.length > 0 && (
+                                                        <div>
+                                                            <span className="text-muted-foreground text-xs font-medium">
+                                                                Informes ({reports.length}):
+                                                            </span>
+                                                            <div className="mt-1 space-y-1">
+                                                                {reports.map((f) => (
+                                                                    <a
+                                                                        key={f.id}
+                                                                        href={`${base}/inspection-files/${f.id}`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                                                    >
+                                                                        <FileText className="h-3.5 w-3.5" /> {f.original_name}
+                                                                        <span className="text-muted-foreground text-xs">
+                                                                            ({Math.round(f.size / 1024)} KB)
+                                                                        </span>
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Technical response */}
+                            {item.latest_response && (
+                                <Card className="border-l-4 border-l-blue-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <Send className="h-4 w-4 text-blue-500" /> Respuesta técnica
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2 text-sm">
+                                        {item.latest_response.reviewer && (
+                                            <InfoRow
+                                                icon={<User className="h-3.5 w-3.5" />}
+                                                label="Revisor"
+                                                value={item.latest_response.reviewer.name}
+                                            />
+                                        )}
+                                        {item.latest_response.submitted_at && (
+                                            <InfoRow
+                                                icon={<CalendarDays className="h-3.5 w-3.5" />}
+                                                label="Fecha"
+                                                value={fmtDate(item.latest_response.submitted_at)}
+                                            />
+                                        )}
+                                        <div className="rounded-md bg-gray-50 p-2.5 whitespace-pre-wrap dark:bg-gray-800/50">
+                                            {item.latest_response.content}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    {/* ── Tab: Recaudos ─────────────────────────────── */}
+                    <TabsContent value="recaudos">
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    Documentos requeridos
+                                </CardTitle>
+                                {totalReqs > 0 && (
+                                    <div className="mt-2">
+                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                            <span className="font-medium">
+                                                {receivedReqs} de {totalReqs} consignados
+                                            </span>
+                                            <span className="font-bold">{progressPct}%</span>
+                                        </div>
+                                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                                            <div
+                                                className={cn(
+                                                    'h-full rounded-full transition-all duration-500',
+                                                    progressPct === 100 ? 'bg-emerald-500' : progressPct >= 50 ? 'bg-blue-500' : 'bg-amber-500',
+                                                )}
+                                                style={{ width: `${progressPct}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {requirements.length === 0 ? (
+                                    <div className="text-muted-foreground py-4 text-center text-sm">Sin recaudos asociados.</div>
+                                ) : (
+                                    requirements.map((er, reqIdx) => {
+                                        const file = er.current_file;
+                                        const isReceived = er.physical_received;
+                                        return (
+                                            <div
+                                                key={er.id}
+                                                className={cn(
+                                                    'rounded-lg border px-3 py-2.5 transition-colors',
+                                                    isReceived
+                                                        ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20'
+                                                        : 'border-amber-200 bg-amber-50/30 dark:border-amber-800/50 dark:bg-amber-950/10',
+                                                )}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                                        <span
+                                                            className={cn(
+                                                                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                                                                isReceived
+                                                                    ? 'bg-emerald-500 text-white'
+                                                                    : 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200',
+                                                            )}
+                                                        >
+                                                            {isReceived ? <Check className="h-3.5 w-3.5" /> : reqIdx + 1}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <span className="text-sm leading-snug font-medium">{er.requirement?.name ?? '—'}</span>
+                                                            {!er.is_required && (
+                                                                <span className="text-muted-foreground ml-1 text-xs">(opcional)</span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {canFilesUpload && (
-                                                            <>
-                                                                <Input
-                                                                    type="file"
-                                                                    className="hidden"
-                                                                    accept="application/pdf,image/*"
-                                                                    disabled={uploadingId === er.id}
-                                                                    ref={(el) => {
-                                                                        fileInputRefs.current[er.id] = el;
-                                                                    }}
-                                                                    onChange={(e) => {
-                                                                        const f = e.target.files?.[0];
-                                                                        e.currentTarget.value = '';
-                                                                        if (f) void handleUpload(er, f);
+                                                    <button
+                                                        type="button"
+                                                        disabled={!canReceive}
+                                                        onClick={() => handleTogglePhysical(er, !isReceived)}
+                                                        className={cn(
+                                                            'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                                                            isReceived
+                                                                ? 'border-emerald-500 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                                : 'border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+                                                            !canReceive && 'cursor-not-allowed opacity-60',
+                                                        )}
+                                                    >
+                                                        <Checkbox checked={isReceived} className="pointer-events-none h-4 w-4" tabIndex={-1} />
+                                                        {isReceived ? 'Consignado' : 'Pendiente'}
+                                                    </button>
+                                                </div>
+                                                {/* File row */}
+                                                <div className="mt-1.5 flex flex-col gap-1.5 border-t border-gray-200/60 pt-1.5 dark:border-gray-700/40">
+                                                    {canFilesView && file && file.mime?.startsWith('image/') && (
+                                                        <a
+                                                            href={`${base}/files/${file.id}?inline=1`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="group relative block h-24 w-24 overflow-hidden rounded-md border bg-gray-100 dark:bg-gray-800"
+                                                        >
+                                                            <img
+                                                                src={`${base}/files/${file.id}?inline=1`}
+                                                                alt={file.original_name}
+                                                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                                                loading="lazy"
+                                                            />
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                                                                <ExternalLink className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                                            </div>
+                                                        </a>
+                                                    )}
+                                                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                                                        <div className="text-xs">
+                                                            {canFilesView && file ? (
+                                                                <a
+                                                                    className="inline-flex items-center gap-1 font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                                                    href={`${base}/files/${file.id}${file.mime === 'application/pdf' ? '?inline=1' : ''}`}
+                                                                    target={file.mime === 'application/pdf' ? '_blank' : undefined}
+                                                                    rel={file.mime === 'application/pdf' ? 'noreferrer' : undefined}
+                                                                >
+                                                                    <Paperclip className="h-3.5 w-3.5" /> {file.original_name}{' '}
+                                                                    <span className="text-muted-foreground">
+                                                                        ({Math.round((file.size ?? 0) / 1024)} KB)
+                                                                    </span>
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-muted-foreground inline-flex items-center gap-1">
+                                                                    <Paperclip className="h-3.5 w-3.5" /> Sin archivo
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {canFilesUpload && (
+                                                                <>
+                                                                    <Input
+                                                                        type="file"
+                                                                        className="hidden"
+                                                                        accept="application/pdf,image/*"
+                                                                        disabled={uploadingId === er.id}
+                                                                        ref={(el) => {
+                                                                            fileInputRefs.current[er.id] = el;
+                                                                        }}
+                                                                        onChange={(e) => {
+                                                                            const f = e.target.files?.[0];
+                                                                            e.currentTarget.value = '';
+                                                                            if (f) void handleUpload(er, f);
+                                                                        }}
+                                                                    />
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        disabled={uploadingId === er.id}
+                                                                        onClick={() => fileInputRefs.current[er.id]?.click()}
+                                                                    >
+                                                                        <FileUp className="h-3.5 w-3.5" /> {file ? 'Reemplazar' : 'Subir'}
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                            {canFilesDelete && file && (
+                                                                <ConfirmAlert
+                                                                    trigger={
+                                                                        <Button type="button" variant="destructive" size="sm">
+                                                                            <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                                                                        </Button>
+                                                                    }
+                                                                    title="Eliminar archivo"
+                                                                    description="¿Desea eliminar el archivo adjunto?"
+                                                                    confirmLabel="Sí, eliminar"
+                                                                    onConfirm={async () => {
+                                                                        await new Promise<void>((resolve, reject) => {
+                                                                            router.delete(`${base}/files/${file.id}`, {
+                                                                                preserveScroll: true,
+                                                                                onSuccess: () => resolve(),
+                                                                                onError: () => reject(new Error('delete_file_failed')),
+                                                                            });
+                                                                        });
                                                                     }}
                                                                 />
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    disabled={uploadingId === er.id}
-                                                                    onClick={() => fileInputRefs.current[er.id]?.click()}
-                                                                >
-                                                                    <Upload className="h-4 w-4" /> {file ? 'Reemplazar' : 'Cargar'}
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                        {canFilesDelete && file && (
-                                                            <ConfirmAlert
-                                                                trigger={
-                                                                    <Button type="button" variant="destructive" size="sm">
-                                                                        <Trash2 className="h-4 w-4" /> Eliminar
-                                                                    </Button>
-                                                                }
-                                                                title="Eliminar archivo"
-                                                                description="¿Desea eliminar el archivo adjunto?"
-                                                                confirmLabel="Eliminar"
-                                                                onConfirm={async () => {
-                                                                    await new Promise<void>((resolve, reject) => {
-                                                                        router.delete(`${base}/files/${file.id}`, {
-                                                                            preserveScroll: true,
-                                                                            onSuccess: () => resolve(),
-                                                                            onError: () => reject(new Error('delete_file_failed')),
-                                                                        });
-                                                                    });
-                                                                }}
-                                                            />
-                                                        )}
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -593,17 +988,19 @@ export default function ExpedienteShow({
                                 )}
                             </CardContent>
                         </Card>
+                    </TabsContent>
 
-                        {/* Timeline */}
+                    {/* ── Tab: Historial ────────────────────────────── */}
+                    <TabsContent value="historial">
                         <Card>
-                            <CardHeader>
+                            <CardHeader className="pb-3">
                                 <CardTitle className="flex items-center gap-2 text-base">
-                                    <Clock className="h-4 w-4 text-sky-600 dark:text-sky-400" /> Timeline
+                                    <Clock className="h-4 w-4 text-sky-600 dark:text-sky-400" /> Historial de actividades
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {(item.events ?? []).length === 0 ? (
-                                    <div className="text-muted-foreground text-sm">Sin eventos registrados.</div>
+                                    <div className="text-muted-foreground py-4 text-center text-sm">Sin eventos registrados.</div>
                                 ) : (
                                     <div className="relative space-y-0">
                                         {(item.events ?? []).map((evt, idx) => {
@@ -611,15 +1008,15 @@ export default function ExpedienteShow({
                                             const date = evt.created_at ? new Date(evt.created_at) : null;
                                             const ic = eventIconColor(evt.type);
                                             return (
-                                                <div key={evt.id} className="relative flex gap-3 pb-4">
+                                                <div key={evt.id} className="relative flex gap-3 pb-5">
                                                     {!isLast && (
-                                                        <div className="absolute top-5 bottom-0 left-[7px] w-px bg-gray-200 dark:bg-gray-700" />
+                                                        <div className="absolute top-7 bottom-0 left-[11px] w-0.5 bg-gray-200 dark:bg-gray-700" />
                                                     )}
-                                                    <div className={`mt-1.5 h-[15px] w-[15px] shrink-0 rounded-full border-2 ${ic}`} />
+                                                    <div className={`mt-0.5 h-6 w-6 shrink-0 rounded-full border-2 ${ic}`} />
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="text-sm font-medium">{evt.description}</div>
-                                                        <div className="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
-                                                            {evt.actor_name && <span>{evt.actor_name}</span>}
+                                                        <div className="text-sm leading-snug font-medium">{evt.description}</div>
+                                                        <div className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 text-xs">
+                                                            {evt.actor_name && <span className="font-medium">{evt.actor_name}</span>}
                                                             {date && <span>{fmtDate(evt.created_at!)}</span>}
                                                         </div>
                                                     </div>
@@ -630,8 +1027,8 @@ export default function ExpedienteShow({
                                 )}
                             </CardContent>
                         </Card>
-                    </div>
-                </div>
+                    </TabsContent>
+                </Tabs>
             </div>
         </AppLayout>
     );
@@ -696,227 +1093,261 @@ function WorkflowActions(p: WFProps) {
     if (!hasAction) return null;
 
     return (
-        <Card className="border-sky-200 dark:border-sky-800">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Eye className="h-4 w-4 text-sky-600 dark:text-sky-400" /> Acciones del flujo
+        <Card className="mb-8 border-2 border-sky-300 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20">
+            <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2.5 text-lg">
+                    <Eye className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                    Acciones del flujo
                 </CardTitle>
+                <p className="text-muted-foreground text-base">Realice la siguiente acción para avanzar el trámite.</p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
                 {showAssignReviewer && (
-                    <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <UserCheck className="h-4 w-4" /> Asignar Revisor
+                    <div className="space-y-3">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <UserCheck className="h-5 w-5" /> Asignar Revisor
                         </Label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-3 sm:flex-row">
                             <Select value={p.reviewerId} onValueChange={p.setReviewerId}>
-                                <SelectTrigger className="flex-1">
+                                <SelectTrigger className="flex-1 py-3 text-base">
                                     <SelectValue placeholder="Seleccionar revisor" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {p.assignableReviewers.map((u) => (
-                                        <SelectItem key={u.id} value={String(u.id)}>
+                                        <SelectItem key={u.id} value={String(u.id)} className="text-base">
                                             {u.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button disabled={!p.reviewerId || p.submitting} onClick={p.onAssignReviewer}>
-                                Asignar
+                            <Button size="lg" className="text-base" disabled={!p.reviewerId || p.submitting} onClick={p.onAssignReviewer}>
+                                <UserCheck className="h-5 w-5" /> Asignar
                             </Button>
                         </div>
                     </div>
                 )}
 
                 {showAssignInspector && (
-                    <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <UserCheck className="h-4 w-4" /> Asignar Inspector
+                    <div className="space-y-3">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <UserCheck className="h-5 w-5" /> Asignar Inspector
                         </Label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-3 sm:flex-row">
                             <Select value={p.inspectorId} onValueChange={p.setInspectorId}>
-                                <SelectTrigger className="flex-1">
+                                <SelectTrigger className="flex-1 py-3 text-base">
                                     <SelectValue placeholder="Seleccionar inspector" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {p.assignableInspectors.map((u) => (
-                                        <SelectItem key={u.id} value={String(u.id)}>
+                                        <SelectItem key={u.id} value={String(u.id)} className="text-base">
                                             {u.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button disabled={!p.inspectorId || p.submitting} onClick={p.onAssignInspector}>
-                                Asignar
+                            <Button size="lg" className="text-base" disabled={!p.inspectorId || p.submitting} onClick={p.onAssignInspector}>
+                                <UserCheck className="h-5 w-5" /> Asignar
                             </Button>
                         </div>
                     </div>
                 )}
 
                 {showStartInspection && (
-                    <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <Search className="h-4 w-4" /> Iniciar Inspección
+                    <div className="space-y-3">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <Search className="h-5 w-5" /> Iniciar Inspección
                         </Label>
-                        <Button disabled={p.submitting} onClick={p.onStartInspection}>
-                            <CheckCircle2 className="h-4 w-4" /> Iniciar
+                        <p className="text-muted-foreground text-base">Al iniciar, el inspector podrá registrar los resultados de su visita.</p>
+                        <Button size="lg" className="text-base" disabled={p.submitting} onClick={p.onStartInspection}>
+                            <CheckCircle2 className="h-5 w-5" /> Iniciar inspección
                         </Button>
                     </div>
                 )}
 
                 {showSubmitInspection && (
-                    <div className="space-y-3">
-                        <Label className="flex items-center gap-2">
-                            <Search className="h-4 w-4" /> Registrar Inspección
+                    <div className="space-y-4">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <Search className="h-5 w-5" /> Registrar Inspección
                         </Label>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                                <Label htmlFor="insp_result">Resultado</Label>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="insp_result" className="text-base">
+                                    Resultado
+                                </Label>
                                 <Select value={p.inspForm.result} onValueChange={(v) => p.setInspForm((prev) => ({ ...prev, result: v }))}>
-                                    <SelectTrigger id="insp_result">
-                                        <SelectValue placeholder="Seleccionar" />
+                                    <SelectTrigger id="insp_result" className="py-3 text-base">
+                                        <SelectValue placeholder="Seleccionar resultado" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="favorable">Favorable</SelectItem>
-                                        <SelectItem value="unfavorable">Desfavorable</SelectItem>
-                                        <SelectItem value="with_observations">Con observaciones</SelectItem>
+                                        <SelectItem value="favorable" className="text-base">
+                                            Favorable
+                                        </SelectItem>
+                                        <SelectItem value="unfavorable" className="text-base">
+                                            Desfavorable
+                                        </SelectItem>
+                                        <SelectItem value="with_observations" className="text-base">
+                                            Con observaciones
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="insp_date">Fecha inspección</Label>
+                            <div className="space-y-2">
+                                <Label htmlFor="insp_date" className="text-base">
+                                    Fecha de inspección
+                                </Label>
                                 <Input
                                     id="insp_date"
                                     type="date"
+                                    className="py-3 text-base"
                                     value={p.inspForm.inspected_at}
                                     onChange={(e) => p.setInspForm((prev) => ({ ...prev, inspected_at: e.target.value }))}
                                 />
                             </div>
                         </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="insp_obs">Observaciones</Label>
+                        <div className="space-y-2">
+                            <Label htmlFor="insp_obs" className="text-base">
+                                Observaciones
+                            </Label>
                             <Textarea
                                 id="insp_obs"
                                 rows={4}
+                                className="text-base"
                                 value={p.inspForm.observations}
                                 onChange={(e) => p.setInspForm((prev) => ({ ...prev, observations: e.target.value }))}
                             />
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                                <Label>Fotos</Label>
-                                <Input type="file" multiple accept="image/jpeg,image/png,image/webp" ref={p.inspPhotosRef} />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label className="text-base">Fotos</Label>
+                                <Input type="file" multiple accept="image/jpeg,image/png,image/webp" className="text-base" ref={p.inspPhotosRef} />
                             </div>
-                            <div className="space-y-1">
-                                <Label>Informe (PDF/Word)</Label>
-                                <Input type="file" multiple accept=".pdf,.doc,.docx" ref={p.inspReportsRef} />
+                            <div className="space-y-2">
+                                <Label className="text-base">Informe (PDF/Word)</Label>
+                                <Input type="file" multiple accept=".pdf,.doc,.docx" className="text-base" ref={p.inspReportsRef} />
                             </div>
                         </div>
                         <Button
+                            size="lg"
+                            className="text-base"
                             disabled={!p.inspForm.result || !p.inspForm.inspected_at || !p.inspForm.observations || p.submitting}
                             onClick={p.onSubmitInspection}
                         >
-                            <CheckCircle2 className="h-4 w-4" /> Registrar inspección
+                            <CheckCircle2 className="h-5 w-5" /> Registrar inspección
                         </Button>
                     </div>
                 )}
 
                 {showSubmitResponse && (
-                    <div className="space-y-3">
-                        <Label className="flex items-center gap-2">
-                            <Send className="h-4 w-4" /> Respuesta Técnica
+                    <div className="space-y-4">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <Send className="h-5 w-5" /> Respuesta Técnica
                         </Label>
                         <Textarea
                             rows={4}
+                            className="text-base"
                             value={p.responseContent}
                             onChange={(e) => p.setResponseContent(e.target.value)}
                             placeholder="Escriba la respuesta técnica…"
                         />
-                        <Button disabled={!p.responseContent.trim() || p.submitting} onClick={p.onSubmitResponse}>
-                            <Send className="h-4 w-4" /> Enviar respuesta
+                        <Button size="lg" className="text-base" disabled={!p.responseContent.trim() || p.submitting} onClick={p.onSubmitResponse}>
+                            <Send className="h-5 w-5" /> Enviar respuesta
                         </Button>
                     </div>
                 )}
 
                 {showIssueDecision && (
-                    <div className="space-y-3">
-                        <Label className="flex items-center gap-2">
-                            <Gavel className="h-4 w-4" /> Emitir Decisión
+                    <div className="space-y-4">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <Gavel className="h-5 w-5" /> Emitir Decisión
                         </Label>
                         <Select value={p.decForm.decision} onValueChange={(v) => p.setDecForm((prev) => ({ ...prev, decision: v }))}>
-                            <SelectTrigger>
+                            <SelectTrigger className="py-3 text-base">
                                 <SelectValue placeholder="Seleccionar decisión" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="approved">Aprobado</SelectItem>
-                                <SelectItem value="rejected">Rechazado</SelectItem>
-                                <SelectItem value="partial">Aprobado parcialmente</SelectItem>
-                                <SelectItem value="suspended">Suspendido</SelectItem>
+                                <SelectItem value="approved" className="text-base">
+                                    Aprobado
+                                </SelectItem>
+                                <SelectItem value="rejected" className="text-base">
+                                    Rechazado
+                                </SelectItem>
+                                <SelectItem value="partial" className="text-base">
+                                    Aprobado parcialmente
+                                </SelectItem>
+                                <SelectItem value="suspended" className="text-base">
+                                    Suspendido
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                         <Textarea
                             rows={3}
+                            className="text-base"
                             value={p.decForm.notes}
                             onChange={(e) => p.setDecForm((prev) => ({ ...prev, notes: e.target.value }))}
                             placeholder="Observaciones (opcional)"
                         />
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                                <Label>Vigencia desde</Label>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label className="text-base">Vigencia desde</Label>
                                 <Input
                                     type="date"
+                                    className="py-3 text-base"
                                     value={p.decForm.valid_from}
                                     onChange={(e) => p.setDecForm((prev) => ({ ...prev, valid_from: e.target.value }))}
                                 />
                             </div>
-                            <div className="space-y-1">
-                                <Label>Vigencia hasta</Label>
+                            <div className="space-y-2">
+                                <Label className="text-base">Vigencia hasta</Label>
                                 <Input
                                     type="date"
+                                    className="py-3 text-base"
                                     value={p.decForm.valid_until}
                                     onChange={(e) => p.setDecForm((prev) => ({ ...prev, valid_until: e.target.value }))}
                                 />
                             </div>
                         </div>
-                        <div className="space-y-1">
-                            <Label>Documento de decisión (PDF/Word)</Label>
-                            <Input type="file" multiple accept=".pdf,.doc,.docx" ref={p.decFilesRef} />
+                        <div className="space-y-2">
+                            <Label className="text-base">Documento de decisión (PDF/Word)</Label>
+                            <Input type="file" multiple accept=".pdf,.doc,.docx" className="text-base" ref={p.decFilesRef} />
                         </div>
-                        <Button disabled={!p.decForm.decision || p.submitting} onClick={p.onIssueDecision}>
-                            <Gavel className="h-4 w-4" /> Emitir decisión
+                        <Button size="lg" className="text-base" disabled={!p.decForm.decision || p.submitting} onClick={p.onIssueDecision}>
+                            <Gavel className="h-5 w-5" /> Emitir decisión
                         </Button>
                     </div>
                 )}
 
                 {showReturn && (
-                    <div className="space-y-3 border-t pt-4">
-                        <Label className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                            <RotateCcw className="h-4 w-4" /> Devolver a fase previa
+                    <div className="space-y-4 border-t-2 pt-5">
+                        <Label className="flex items-center gap-2 text-base font-semibold text-amber-600 dark:text-amber-400">
+                            <RotateCcw className="h-5 w-5" /> Devolver a fase previa
                         </Label>
                         <Select value={p.returnForm.target_status} onValueChange={(v) => p.setReturnForm((prev) => ({ ...prev, target_status: v }))}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Fase destino" />
+                            <SelectTrigger className="py-3 text-base">
+                                <SelectValue placeholder="Seleccionar fase destino" />
                             </SelectTrigger>
                             <SelectContent>
                                 {p.returnablePhases.map((ph) => (
-                                    <SelectItem key={ph.value} value={ph.value}>
+                                    <SelectItem key={ph.value} value={ph.value} className="text-base">
                                         {ph.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                         <Textarea
-                            rows={2}
+                            rows={3}
+                            className="text-base"
                             value={p.returnForm.reason}
                             onChange={(e) => p.setReturnForm((prev) => ({ ...prev, reason: e.target.value }))}
                             placeholder="Motivo de la devolución (obligatorio)"
                         />
                         <Button
                             variant="outline"
+                            size="lg"
+                            className="text-base"
                             disabled={!p.returnForm.target_status || !p.returnForm.reason.trim() || p.submitting}
                             onClick={p.onReturn}
                         >
-                            <RotateCcw className="h-4 w-4" /> Devolver
+                            <RotateCcw className="h-5 w-5" /> Devolver
                         </Button>
                     </div>
                 )}
@@ -927,11 +1358,12 @@ function WorkflowActions(p: WFProps) {
 
 /* ── Helpers ──────────────────────────────────────────────── */
 
-function DataRow({ label, value }: { label: string; value?: string | null }) {
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string | null }) {
     return (
-        <div className="flex justify-between gap-3">
-            <span className="text-muted-foreground text-sm">{label}</span>
-            <span className="text-sm font-medium">{value ?? '—'}</span>
+        <div className="flex items-center gap-2.5 text-base">
+            <span className="text-muted-foreground shrink-0">{icon}</span>
+            <span className="text-muted-foreground">{label}:</span>
+            <span className="font-medium">{value ?? '—'}</span>
         </div>
     );
 }

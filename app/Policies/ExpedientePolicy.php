@@ -45,6 +45,16 @@ class ExpedientePolicy extends BaseResourcePolicy
         return false;
     }
 
+    public function update(User $user, $model): bool
+    {
+        if (! $this->can($user, 'update')) {
+            return false;
+        }
+
+        /** @var Expediente $model */
+        return (string) $model->getAttribute('status') === 'received';
+    }
+
     public function receive(User $user, Expediente $expediente): bool
     {
         return $this->can($user, 'receive');

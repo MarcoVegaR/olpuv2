@@ -293,6 +293,14 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Submit — inside left column so it stays visible next to checklist */}
+                            <div className="flex justify-end py-3">
+                                <Button type="submit" size="lg" disabled={form.processing} className="px-8">
+                                    <Save className="h-4 w-4" />
+                                    Crear expediente
+                                </Button>
+                            </div>
                         </div>
 
                         {/* Right column: Checklist (2/5) */}
@@ -353,13 +361,7 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                         </div>
                     </div>
 
-                    {/* Sticky submit footer */}
-                    <div className="bg-background/80 sticky bottom-0 z-10 mt-4 flex justify-end border-t py-3 backdrop-blur">
-                        <Button type="submit" size="lg" disabled={form.processing} className="px-8">
-                            <Save className="h-4 w-4" />
-                            Crear expediente
-                        </Button>
-                    </div>
+                    {/* Submit button is inside the left column above */}
                 </form>
             </div>
         </AppLayout>

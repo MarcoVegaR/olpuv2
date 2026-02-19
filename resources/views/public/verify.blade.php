@@ -39,6 +39,27 @@
         .decision-partial { background: #fef3c7; color: #92400e; }
         .decision-suspended { background: #fef3c7; color: #92400e; }
         .decision-meta { margin-top: 8px; font-size: 13px; color: #64748b; }
+        /* Progress stepper */
+        .stepper { margin-top: 20px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+        .stepper-title { text-align: center; font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #1a1a2e; }
+        .stepper-track { display: flex; align-items: center; justify-content: space-between; }
+        .stepper-step { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .stepper-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; transition: all .2s; }
+        .stepper-dot.done { background: #10b981; color: #fff; box-shadow: 0 2px 6px rgba(16,185,129,.3); }
+        .stepper-dot.current { background: #3b82f6; color: #fff; box-shadow: 0 0 0 4px rgba(59,130,246,.2); }
+        .stepper-dot.rejected { background: #ef4444; color: #fff; box-shadow: 0 0 0 4px rgba(239,68,68,.2); }
+        .stepper-dot.pending { background: #f3f4f6; color: #9ca3af; }
+        .stepper-dot svg { width: 18px; height: 18px; }
+        .stepper-label { font-size: 11px; font-weight: 500; color: #64748b; text-align: center; max-width: 70px; }
+        .stepper-label.done { color: #059669; }
+        .stepper-label.current { color: #3b82f6; font-weight: 700; }
+        .stepper-bar { flex: 1; height: 4px; border-radius: 2px; margin: 0 2px; }
+        .stepper-bar.done { background: #10b981; }
+        .stepper-bar.pending { background: #e5e7eb; }
+        @media (max-width: 480px) {
+            .stepper-label { display: none; }
+            .stepper-dot { width: 30px; height: 30px; font-size: 11px; }
+        }
     </style>
 </head>
 <body>
@@ -97,12 +118,12 @@
                     <span class="info-value">{{ optional($expediente->received_at ?? $expediente->created_at)->format('d/m/Y H:i') }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">N° Expediente</span>
+                    <span class="info-label">Nro. de Seguimiento</span>
                     <span class="info-value mono">{{ $expediente->tracking }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Verificado por</span>
-                    <span class="info-value">{{ $mode === 'qr' ? 'Código QR' : 'Número de tracking' }}</span>
+                    <span class="info-value">{{ $mode === 'qr' ? 'Código QR' : 'Número de seguimiento' }}</span>
                 </div>
                 @if($isTerminal && $expediente->completed_at)
                 <div class="info-row">
@@ -139,6 +160,55 @@
                 @endif
             </div>
             @endif
+
+            {{-- Progress stepper --}}
+            @php
+                $phases = [
+                    ['key' => 'received', 'label' => 'Recibido'],
+                    ['key' => 'pending_reviewer', 'label' => 'Revisor'],
+                    ['key' => 'pending_inspector', 'label' => 'Inspector'],
+                    ['key' => 'in_inspection', 'label' => 'Inspección'],
+                    ['key' => 'pending_response', 'label' => 'Respuesta'],
+                    ['key' => 'pending_decision', 'label' => 'Decisión'],
+                    ['key' => 'completed', 'label' => 'Completado'],
+                ];
+                $phaseKeys = array_column($phases, 'key');
+                $currentIdx = array_search($status, $phaseKeys, true);
+                if ($status === 'completed' || $status === 'rejected') {
+                    $currentIdx = count($phases) - 1;
+                } elseif ($currentIdx === false) {
+                    $currentIdx = 0;
+                }
+                $isRejectedStatus = $status === 'rejected';
+            @endphp
+            <div class="stepper">
+                <div class="stepper-title">Progreso del trámite</div>
+                <div class="stepper-track">
+                    @foreach($phases as $idx => $phase)
+                        @if($idx > 0)
+                            <div class="stepper-bar {{ $idx < $currentIdx ? 'done' : 'pending' }}"></div>
+                        @endif
+                        @php
+                            $isDone = $idx < $currentIdx;
+                            $isCurrent = $idx === $currentIdx;
+                            $dotClass = $isDone ? 'done' : ($isCurrent && $isRejectedStatus && $idx === count($phases) - 1 ? 'rejected' : ($isCurrent ? 'current' : 'pending'));
+                            $labelClass = $isDone ? 'done' : ($isCurrent ? 'current' : '');
+                        @endphp
+                        <div class="stepper-step">
+                            <div class="stepper-dot {{ $dotClass }}">
+                                @if($isDone)
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                @elseif($isCurrent && $isRejectedStatus && $idx === count($phases) - 1)
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                @else
+                                    {{ $idx + 1 }}
+                                @endif
+                            </div>
+                            <span class="stepper-label {{ $labelClass }}">{{ $phase['label'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
 
             <div class="footer-link">
                 <a href="{{ url('/public/tracking') }}">Consultar otro trámite →</a>

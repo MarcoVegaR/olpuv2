@@ -40,9 +40,6 @@ class PublicExpedienteVerificationController extends Controller
             ->with([
                 'procedureType:id,code,name',
                 'solicitante:id,tipo_documento,numero_documento,nombre_razon_social',
-                'events' => function ($q) {
-                    $q->orderBy('created_at', 'asc');
-                },
             ])
             ->first();
 
@@ -71,16 +68,7 @@ class PublicExpedienteVerificationController extends Controller
                     'documento' => ($expediente->solicitante?->getAttribute('tipo_documento') ?? '—').'-'.($expediente->solicitante?->getAttribute('numero_documento') ?? ''),
                     'receivedAt' => optional($expediente->getAttribute('received_at') ?? $expediente->getAttribute('created_at'))->format('d/m/Y H:i'),
                     'completedAt' => optional($expediente->getAttribute('completed_at'))?->format('d/m/Y H:i'),
-                    'events' => $expediente->events
-                        ->filter(fn ($event) => $event->getAttribute('type') !== 'decision_issued')
-                        ->map(function ($event) {
-                            return [
-                                'id' => $event->getKey(),
-                                'type' => (string) $event->getAttribute('type'),
-                                'description' => (string) $event->getAttribute('description'),
-                                'createdAt' => optional($event->getAttribute('created_at'))->format('d/m/Y H:i'),
-                            ];
-                        })->values(),
+                    'currentPhase' => $status,
                 ],
             ]);
         }

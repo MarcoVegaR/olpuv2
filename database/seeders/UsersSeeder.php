@@ -20,8 +20,8 @@ class UsersSeeder extends Seeder
 
         // ── Admin ──
         $admin = User::query()->firstOrCreate(
-            ['email' => 'test@mailinator.com'],
-            ['name' => 'Test Admin', 'password' => Hash::make('12345678')]
+            ['email' => 'proyectos@caracoders.com.ve'],
+            ['name' => 'Administrador', 'password' => Hash::make('12345678')]
         );
 
         $adminRole = Role::where('name', 'admin')->where('guard_name', $guard)->first();
@@ -52,6 +52,8 @@ class UsersSeeder extends Seeder
                 'expedientes.files.view',
                 'expedientes.assign.inspector',
                 'expedientes.response.submit',
+                'expedientes.inspection.submit',
+                'expedientes.inspection.files',
                 'solicitantes.view',
             ],
             'inspector' => [
@@ -101,12 +103,11 @@ class UsersSeeder extends Seeder
 
         // ── Users ──
         $users = [
-            ['email' => 'secretaria@mailinator.com',  'name' => 'Secretaria Taquilla', 'role' => 'recepcionista'],
-            ['email' => 'revisor@mailinator.com',     'name' => 'Carlos Revisor',      'role' => 'revisor'],
-            ['email' => 'revisor2@mailinator.com',    'name' => 'Laura Revisora',      'role' => 'revisor'],
-            ['email' => 'inspector@mailinator.com',   'name' => 'Miguel Inspector',    'role' => 'inspector'],
-            ['email' => 'inspector2@mailinator.com',  'name' => 'Pedro Inspector',     'role' => 'inspector'],
-            ['email' => 'directora@mailinator.com',   'name' => 'Ana Directora',       'role' => 'directora'],
+            ['email' => 'salfonzo@chacao.gob.ve',  'name' => 'Soraya Alfonzo',      'role' => 'directora'],
+            ['email' => 'fcarrillo@chacao.gob.ve', 'name' => 'Francisco Carrillo',  'role' => 'revisor'],
+            ['email' => 'msoto@chacao.gob.ve',     'name' => 'Mirian Soto',         'role' => 'recepcionista'],
+            ['email' => 'dmania@chacao.gob.ve',    'name' => 'Daniela Mania',       'role' => 'revisor'],
+            ['email' => 'aquintero@chacao.gob.ve', 'name' => 'Andreina Quintero',   'role' => 'revisor'],
         ];
 
         foreach ($users as $u) {
@@ -119,6 +120,6 @@ class UsersSeeder extends Seeder
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $this->command->info('Created 7 users: admin, secretaria, 2 revisores, 2 inspectores, directora');
+        $this->command->info('Created 6 users: admin, directora, 3 revisores, recepcionista');
     }
 }

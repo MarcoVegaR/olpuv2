@@ -58,10 +58,7 @@
             <div class="dept">Alcaldía del Municipio</div>
         </div>
         @if(!empty($qrBase64))
-        <div class="header-right">
-            <img src="data:image/png;base64,{{ $qrBase64 }}" alt="QR">
-            <div class="qr-label">Verificación: {{ $expediente->tracking }}</div>
-        </div>
+        {{-- QR removed from planilla de recepción --}}
         @endif
     </div>
 
@@ -110,20 +107,7 @@
         </div>
     </div>
 
-    {{-- ── Workflow assignments (if any) ── --}}
-    @if($expediente->reviewer || $expediente->inspector)
-    <div class="card" style="margin-bottom: 10px;">
-        <div class="card-title">Asignaciones</div>
-        <div style="display: flex; gap: 24px;">
-            @if($expediente->reviewer)
-            <div class="row" style="flex: 1;"><span class="label">Revisor</span><span class="value">{{ $expediente->reviewer->name }}</span></div>
-            @endif
-            @if($expediente->inspector)
-            <div class="row" style="flex: 1;"><span class="label">Inspector</span><span class="value">{{ $expediente->inspector->name }}</span></div>
-            @endif
-        </div>
-    </div>
-    @endif
+    {{-- Workflow assignments removed from planilla de recepción --}}
 
     {{-- ── Observations ── --}}
     <div class="obs-box">

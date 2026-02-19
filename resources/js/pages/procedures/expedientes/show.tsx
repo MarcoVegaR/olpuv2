@@ -1,4 +1,5 @@
 import { ConfirmAlert } from '@/components/dialogs/confirm-alert';
+import { MultiFilePicker } from '@/components/form/MultiFilePicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -199,9 +200,9 @@ export default function ExpedienteShow({
     const [returnForm, setReturnForm] = React.useState({ target_status: '', reason: '' });
     const [submitting, setSubmitting] = React.useState(false);
 
-    const inspPhotosRef = React.useRef<HTMLInputElement | null>(null);
-    const inspReportsRef = React.useRef<HTMLInputElement | null>(null);
-    const decFilesRef = React.useRef<HTMLInputElement | null>(null);
+    const [inspPhotos, setInspPhotos] = React.useState<File[]>([]);
+    const [inspReports, setInspReports] = React.useState<File[]>([]);
+    const [decFiles, setDecFiles] = React.useState<File[]>([]);
 
     // Edit form state
     const [editing, setEditing] = React.useState(false);
@@ -292,7 +293,8 @@ export default function ExpedienteShow({
             onStart: () => toast.loading('Procesando…', { id: 'wf' }),
             onSuccess: () => toast.success(msg, { id: 'wf' }),
             onError: (errors) => {
-                toast.error((Object.values(errors)[0] as string) || 'Error', { id: 'wf' });
+                const msgs = Object.values(errors).flat().filter(Boolean);
+                toast.error(msgs.join(' • ') || 'Error', { id: 'wf' });
             },
             onFinish: () => setSubmitting(false),
         });
@@ -537,25 +539,25 @@ export default function ExpedienteShow({
                     returnForm={returnForm}
                     setReturnForm={setReturnForm}
                     submitting={submitting}
-                    inspPhotosRef={inspPhotosRef}
-                    inspReportsRef={inspReportsRef}
-                    decFilesRef={decFilesRef}
+                    inspPhotos={inspPhotos}
+                    setInspPhotos={setInspPhotos}
+                    inspReports={inspReports}
+                    setInspReports={setInspReports}
+                    decFiles={decFiles}
+                    setDecFiles={setDecFiles}
                     onAssignReviewer={() => patchAction(`${base}/assign-reviewer`, { reviewer_id: Number(reviewerId) }, 'Revisor asignado')}
                     onAssignInspector={() => patchAction(`${base}/assign-inspector`, { inspector_id: Number(inspectorId) }, 'Inspector asignado')}
                     onStartInspection={() => patchAction(`${base}/start-inspection`, {}, 'Inspección iniciada')}
                     onSubmitInspection={() => {
                         const fd: Record<string, unknown> = { ...inspForm };
-                        const photos = inspPhotosRef.current?.files;
-                        const reports = inspReportsRef.current?.files;
-                        if (photos?.length) fd.photos = Array.from(photos);
-                        if (reports?.length) fd.reports = Array.from(reports);
+                        if (inspPhotos.length) fd.photos = inspPhotos;
+                        if (inspReports.length) fd.reports = inspReports;
                         postAction(`${base}/inspection`, fd, 'Inspección registrada');
                     }}
                     onSubmitResponse={() => postAction(`${base}/response`, { content: responseContent }, 'Respuesta técnica enviada')}
                     onIssueDecision={() => {
                         const fd: Record<string, unknown> = { ...decForm };
-                        const files = decFilesRef.current?.files;
-                        if (files?.length) fd.files = Array.from(files);
+                        if (decFiles.length) fd.files = decFiles;
                         patchAction(`${base}/decision`, fd, 'Decisión emitida');
                     }}
                     onReturn={() => patchAction(`${base}/return`, returnForm, 'Expediente devuelto')}
@@ -1060,9 +1062,12 @@ type WFProps = {
     returnForm: { target_status: string; reason: string };
     setReturnForm: React.Dispatch<React.SetStateAction<{ target_status: string; reason: string }>>;
     submitting: boolean;
-    inspPhotosRef: React.RefObject<HTMLInputElement | null>;
-    inspReportsRef: React.RefObject<HTMLInputElement | null>;
-    decFilesRef: React.RefObject<HTMLInputElement | null>;
+    inspPhotos: File[];
+    setInspPhotos: React.Dispatch<React.SetStateAction<File[]>>;
+    inspReports: File[];
+    setInspReports: React.Dispatch<React.SetStateAction<File[]>>;
+    decFiles: File[];
+    setDecFiles: React.Dispatch<React.SetStateAction<File[]>>;
     onAssignReviewer: () => void;
     onAssignInspector: () => void;
     onStartInspection: () => void;
@@ -1169,10 +1174,13 @@ function WorkflowActions(p: WFProps) {
                         <Label className="flex items-center gap-2 text-base font-semibold">
                             <Search className="h-5 w-5" /> Registrar Inspección
                         </Label>
+                        <p className="text-muted-foreground text-sm">
+                            Los campos marcados con <span className="text-destructive">*</span> son obligatorios.
+                        </p>
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <Label htmlFor="insp_result" className="text-base">
-                                    Resultado
+                                    Resultado <span className="text-destructive">*</span>
                                 </Label>
                                 <Select value={p.inspForm.result} onValueChange={(v) => p.setInspForm((prev) => ({ ...prev, result: v }))}>
                                     <SelectTrigger id="insp_result" className="py-3 text-base">
@@ -1193,7 +1201,7 @@ function WorkflowActions(p: WFProps) {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="insp_date" className="text-base">
-                                    Fecha de inspección
+                                    Fecha de inspección <span className="text-destructive">*</span>
                                 </Label>
                                 <Input
                                     id="insp_date"
@@ -1206,25 +1214,42 @@ function WorkflowActions(p: WFProps) {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="insp_obs" className="text-base">
-                                Observaciones
+                                Observaciones <span className="text-destructive">*</span>
                             </Label>
                             <Textarea
                                 id="insp_obs"
                                 rows={4}
                                 className="text-base"
+                                placeholder="Describa los hallazgos de la inspección…"
                                 value={p.inspForm.observations}
                                 onChange={(e) => p.setInspForm((prev) => ({ ...prev, observations: e.target.value }))}
                             />
+                            <p className="text-muted-foreground text-xs">Máximo 5.000 caracteres.</p>
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label className="text-base">Fotos</Label>
-                                <Input type="file" multiple accept="image/jpeg,image/png,image/webp" className="text-base" ref={p.inspPhotosRef} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-base">Informe (PDF/Word)</Label>
-                                <Input type="file" multiple accept=".pdf,.doc,.docx" className="text-base" ref={p.inspReportsRef} />
-                            </div>
+                        <div className="space-y-2">
+                            <Label className="text-base">Fotos de evidencia</Label>
+                            <MultiFilePicker
+                                files={p.inspPhotos}
+                                onChange={p.setInspPhotos}
+                                accept="image/jpeg,image/png,image/webp"
+                                maxFiles={20}
+                                maxSizeMB={10}
+                                hint="JPG, PNG o WEBP — Máx. 10 MB por archivo, hasta 20"
+                                preview
+                                disabled={p.submitting}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-base">Informe (PDF/Word)</Label>
+                            <MultiFilePicker
+                                files={p.inspReports}
+                                onChange={p.setInspReports}
+                                accept=".pdf,.doc,.docx"
+                                maxFiles={5}
+                                maxSizeMB={10}
+                                hint="PDF, DOC o DOCX — Máx. 10 MB por archivo, hasta 5"
+                                disabled={p.submitting}
+                            />
                         </div>
                         <Button
                             size="lg"
@@ -1308,7 +1333,15 @@ function WorkflowActions(p: WFProps) {
                         </div>
                         <div className="space-y-2">
                             <Label className="text-base">Documento de decisión (PDF/Word)</Label>
-                            <Input type="file" multiple accept=".pdf,.doc,.docx" className="text-base" ref={p.decFilesRef} />
+                            <MultiFilePicker
+                                files={p.decFiles}
+                                onChange={p.setDecFiles}
+                                accept=".pdf,.doc,.docx"
+                                maxFiles={5}
+                                maxSizeMB={10}
+                                hint="PDF, DOC o DOCX — Máx. 10 MB por archivo, hasta 5"
+                                disabled={p.submitting}
+                            />
                         </div>
                         <Button size="lg" className="text-base" disabled={!p.decForm.decision || p.submitting} onClick={p.onIssueDecision}>
                             <Gavel className="h-5 w-5" /> Emitir decisión

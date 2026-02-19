@@ -18,14 +18,12 @@ class DatabaseSeeder extends Seeder
         // Seed the single default admin user
         $this->call(UsersSeeder::class);
 
-        // Seed test roles
-        $this->call(RolesTestSeeder::class);
-
         $this->call(TramitesCatalogSeeder::class);
 
-        // Seed test solicitantes and expedientes
-        $this->call(SolicitantesSeeder::class);
-        $this->call(ExpedientesSeeder::class);
+        // Commented out for production — test data only
+        // $this->call(RolesTestSeeder::class);
+        // $this->call(SolicitantesSeeder::class);
+        // $this->call(ExpedientesSeeder::class);
 
         // Reset permission cache to avoid stale state in dev/CI
         app(PermissionRegistrar::class)->forgetCachedPermissions();

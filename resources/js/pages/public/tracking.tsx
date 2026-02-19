@@ -3,31 +3,11 @@ import LandingNavHeader from '@/components/landing/LandingNavHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
-import {
-    AlertCircle,
-    CheckCircle2,
-    Circle,
-    ClipboardCheck,
-    Clock,
-    FileSearch,
-    Gavel,
-    Loader2,
-    Search,
-    ShieldCheck,
-    UserCheck,
-    UserSearch,
-    XCircle,
-} from 'lucide-react';
-import { type FormEvent, useMemo, useState } from 'react';
-
-interface TimelineEvent {
-    id: number;
-    type: string;
-    description: string;
-    createdAt: string;
-}
+import { AlertCircle, Check, Loader2, Search, X } from 'lucide-react';
+import React, { type FormEvent, useState } from 'react';
 
 interface TrackingResult {
     tracking: string;
@@ -38,22 +18,24 @@ interface TrackingResult {
     documento: string;
     receivedAt: string;
     completedAt: string | null;
-    events: TimelineEvent[];
+    currentPhase: string;
 }
 
-const EVENT_ICONS: Record<string, typeof Circle> = {
-    reception: ClipboardCheck,
-    created: ClipboardCheck,
-    reception_created: ClipboardCheck,
-    confirmed: ShieldCheck,
-    reviewer_assigned: UserSearch,
-    inspector_assigned: UserCheck,
-    inspection_started: FileSearch,
-    inspection_submitted: FileSearch,
-    response_submitted: ClipboardCheck,
-    decision_issued: Gavel,
-    returned_to_phase: AlertCircle,
-};
+const PHASES = [
+    { key: 'received', label: 'Recibido' },
+    { key: 'pending_reviewer', label: 'Revisor' },
+    { key: 'pending_inspector', label: 'Inspector' },
+    { key: 'in_inspection', label: 'Inspección' },
+    { key: 'pending_response', label: 'Respuesta' },
+    { key: 'pending_decision', label: 'Decisión' },
+    { key: 'completed', label: 'Completado' },
+] as const;
+
+function phaseIndex(status: string): number {
+    const idx = PHASES.findIndex((p) => p.key === status);
+    if (status === 'completed' || status === 'rejected') return PHASES.length - 1;
+    return idx >= 0 ? idx : 0;
+}
 
 export default function PublicTracking() {
     const { auth } = usePage<SharedData>().props;
@@ -94,33 +76,9 @@ export default function PublicTracking() {
         }
     }
 
-    const isTerminal = result && ['completed'].includes(result.status);
+    const currentPhase = result ? phaseIndex(result.currentPhase) : 0;
+    const isRejected = result?.currentPhase === 'rejected';
 
-    const timelineEvents = useMemo(() => {
-        if (!result) return [];
-        const events = [...result.events];
-
-        const hasReception = events.some((e) => e.type === 'reception' || e.type === 'created' || e.type === 'reception_created');
-        if (!hasReception && result.receivedAt) {
-            events.push({
-                id: -1,
-                type: 'reception',
-                description: 'Expediente recepcionado',
-                createdAt: result.receivedAt,
-            });
-        }
-
-        if (isTerminal && result.completedAt) {
-            events.unshift({
-                id: -2,
-                type: 'completed',
-                description: 'Trámite completado',
-                createdAt: result.completedAt,
-            });
-        }
-
-        return events;
-    }, [result, isTerminal]);
     return (
         <>
             <Head title="Consultar Trámite - Chacao Verifica" />
@@ -133,7 +91,7 @@ export default function PublicTracking() {
                         <div className="container mx-auto px-6 text-center">
                             <h1 className="text-foreground text-3xl font-bold tracking-tight sm:text-4xl">Consultar Trámite</h1>
                             <p className="mx-auto mt-3 max-w-xl text-lg text-slate-600 dark:text-slate-400">
-                                Escriba su número de expediente y presione <strong>Consultar</strong>.
+                                Escriba su número de seguimiento y presione <strong>Consultar</strong>.
                             </p>
 
                             {/* Search — prominent with strong visual presence */}
@@ -141,14 +99,14 @@ export default function PublicTracking() {
                                 <Card className="mx-auto mt-6 max-w-4xl shadow-none">
                                     <CardContent className="p-4">
                                         <label htmlFor="tracking-input" className="text-foreground mb-2 block text-left text-sm font-semibold">
-                                            Número de expediente
+                                            Número de seguimiento
                                         </label>
                                         <div className="flex gap-2">
                                             <div className="relative flex-1">
                                                 <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2" />
                                                 <Input
                                                     id="tracking-input"
-                                                    placeholder="Ej: EXP-01KH6H5EHZJN8VX2YGHZWM40D5"
+                                                    placeholder="Ej: TRK-01KH6H5EHZJN8VX2YGHZWM40D5"
                                                     value={tracking}
                                                     onChange={(e) => setTracking(e.target.value)}
                                                     className="focus-visible:ring-primary/30 h-12 pl-11 text-base shadow-none"
@@ -194,7 +152,7 @@ export default function PublicTracking() {
                                         <CardContent className="pt-5">
                                             <dl className="divide-y divide-slate-100 text-base dark:divide-slate-800">
                                                 <div className="flex justify-between gap-4 py-3">
-                                                    <dt className="font-medium text-slate-500 dark:text-slate-400">Expediente</dt>
+                                                    <dt className="font-medium text-slate-500 dark:text-slate-400">Nro. de Seguimiento</dt>
                                                     <dd className="text-foreground font-mono text-sm font-semibold">{result.tracking}</dd>
                                                 </div>
                                                 <div className="flex justify-between gap-4 py-3">
@@ -223,71 +181,70 @@ export default function PublicTracking() {
                                         </CardContent>
                                     </Card>
 
-                                    {/* Timeline */}
-                                    {timelineEvents.length > 0 && (
-                                        <Card className="shadow-sm">
-                                            <CardContent className="pt-6">
-                                                <h2 className="text-foreground mb-1 flex items-center gap-2 text-xl font-bold">
-                                                    <Clock className="text-primary size-5" />
-                                                    Historial del Trámite
-                                                </h2>
-                                                <p className="text-muted-foreground mb-5 text-sm">
-                                                    Cada paso que ha seguido su expediente, del más reciente al más antiguo.
-                                                </p>
-
-                                                <ol className="border-border relative ml-4 border-l-2">
-                                                    {timelineEvents.map((event, idx) => {
-                                                        const isFirst = idx === 0;
-                                                        const Icon = EVENT_ICONS[event.type] ?? Circle;
-                                                        const isReturn = event.type === 'returned_to_phase';
-
-                                                        let dotColor = 'bg-primary/15 text-primary';
-                                                        if (isFirst && isTerminal) {
-                                                            dotColor =
-                                                                result.status === 'completed'
-                                                                    ? 'bg-green-100 text-green-600'
-                                                                    : result.status === 'rejected'
-                                                                      ? 'bg-red-100 text-red-600'
-                                                                      : 'bg-amber-100 text-amber-600';
-                                                        } else if (isReturn) {
-                                                            dotColor = 'bg-amber-100 text-amber-600';
-                                                        } else if (isFirst) {
-                                                            dotColor = 'bg-primary text-primary-foreground';
-                                                        }
-
-                                                        return (
-                                                            <li key={event.id} className="relative pb-7 pl-9 last:pb-0">
-                                                                {/* Dot */}
+                                    {/* Progress Stepper */}
+                                    <Card className="shadow-sm">
+                                        <CardContent className="px-4 py-5 sm:px-6">
+                                            <h2 className="mb-4 text-center text-lg font-semibold">Progreso del trámite</h2>
+                                            <div className="flex items-center justify-between">
+                                                {PHASES.map((phase, idx) => {
+                                                    const isDone = idx < currentPhase;
+                                                    const isCurrent = idx === currentPhase;
+                                                    const isRejectedStep = isRejected && idx === PHASES.length - 1;
+                                                    return (
+                                                        <React.Fragment key={phase.key}>
+                                                            {idx > 0 && (
                                                                 <div
-                                                                    className={`absolute -left-[18px] flex size-9 items-center justify-center rounded-full ${dotColor} ring-background ring-4`}
+                                                                    className={cn(
+                                                                        'hidden h-1.5 flex-1 rounded-full sm:block',
+                                                                        isDone ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700',
+                                                                    )}
+                                                                />
+                                                            )}
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <div
+                                                                    className={cn(
+                                                                        'flex h-10 w-10 items-center justify-center rounded-full text-base font-bold transition-colors sm:h-11 sm:w-11',
+                                                                        isDone && 'bg-emerald-500 text-white shadow-md',
+                                                                        isCurrent &&
+                                                                            !isRejectedStep &&
+                                                                            'ring-primary/30 bg-primary text-primary-foreground shadow-md ring-4',
+                                                                        isCurrent &&
+                                                                            isRejectedStep &&
+                                                                            'bg-destructive text-destructive-foreground shadow-md ring-4 ring-red-200 dark:ring-red-900',
+                                                                        !isDone &&
+                                                                            !isCurrent &&
+                                                                            'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
+                                                                    )}
                                                                 >
-                                                                    {isFirst && isTerminal ? (
-                                                                        result.status === 'completed' ? (
-                                                                            <CheckCircle2 className="size-5" />
-                                                                        ) : (
-                                                                            <XCircle className="size-5" />
-                                                                        )
+                                                                    {isDone ? (
+                                                                        <Check className="h-5 w-5" />
+                                                                    ) : isRejectedStep ? (
+                                                                        <X className="h-5 w-5" />
                                                                     ) : (
-                                                                        <Icon className="size-5" />
+                                                                        idx + 1
                                                                     )}
                                                                 </div>
-
-                                                                {/* Content */}
-                                                                <div className="min-w-0 pt-1">
-                                                                    <p
-                                                                        className={`text-base font-semibold ${isFirst ? 'text-foreground' : 'text-foreground/80'}`}
-                                                                    >
-                                                                        {event.description}
-                                                                    </p>
-                                                                    <p className="text-muted-foreground mt-0.5 text-sm">{event.createdAt}</p>
-                                                                </div>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ol>
-                                            </CardContent>
-                                        </Card>
-                                    )}
+                                                                <span
+                                                                    className={cn(
+                                                                        'hidden text-center text-xs font-medium sm:block sm:text-sm',
+                                                                        isDone && 'text-emerald-600 dark:text-emerald-400',
+                                                                        isCurrent && 'text-primary font-bold',
+                                                                        !isDone && !isCurrent && 'text-muted-foreground',
+                                                                    )}
+                                                                >
+                                                                    {phase.label}
+                                                                </span>
+                                                            </div>
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Mobile: show current phase name */}
+                                            <p className="text-primary mt-3 text-center text-base font-semibold sm:hidden">
+                                                Paso actual: {PHASES[currentPhase]?.label}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             )}
                         </div>

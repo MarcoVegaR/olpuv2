@@ -255,20 +255,12 @@ class ExpedienteController extends BaseIndexController
             'procedureType',
             'solicitante',
             'requirements.requirement',
-            'reviewer',
-            'inspector',
         ]);
-
-        $url = url('/public/verify/'.$expediente->getAttribute('qr_token'));
-        $renderer = new GDLibRenderer(200, 4, 'png', 9);
-        $writer = new Writer($renderer);
-        $qrBase64 = base64_encode($writer->writeString($url));
 
         $statusLabels = ExpedienteWorkflowService::statusLabels();
 
         return response()->view('expedientes.planilla', [
             'expediente' => $expediente,
-            'qrBase64' => $qrBase64,
             'statusLabels' => $statusLabels,
         ]);
     }
@@ -470,6 +462,21 @@ class ExpedienteController extends BaseIndexController
             'photos.*' => ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', 'max:10240'],
             'reports' => ['nullable', 'array', 'max:5'],
             'reports.*' => ['file', 'mimetypes:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'max:10240'],
+        ], [
+            'observations.required' => 'Las observaciones son obligatorias.',
+            'observations.max' => 'Las observaciones no deben exceder 5.000 caracteres.',
+            'result.required' => 'Debe seleccionar un resultado de inspección.',
+            'result.in' => 'El resultado seleccionado no es válido.',
+            'inspected_at.required' => 'La fecha de inspección es obligatoria.',
+            'inspected_at.date' => 'La fecha de inspección no es válida.',
+            'photos.max' => 'No puede subir más de 20 fotos.',
+            'photos.*.file' => 'La foto no se pudo subir. Verifique que el archivo no esté dañado y no supere los 10 MB.',
+            'photos.*.image' => 'Cada foto debe ser una imagen válida (JPG, PNG o WEBP). Verifique que el archivo no esté dañado.',
+            'photos.*.mimetypes' => 'Solo se permiten imágenes en formato JPG, PNG o WEBP.',
+            'photos.*.max' => 'Cada foto no debe superar los 10 MB. Reduzca el tamaño de la imagen e intente nuevamente.',
+            'reports.max' => 'No puede subir más de 5 informes.',
+            'reports.*.mimetypes' => 'Solo se permiten informes en formato PDF, DOC o DOCX.',
+            'reports.*.max' => 'Cada informe no debe superar los 10 MB.',
         ]);
 
         /** @var array<\Illuminate\Http\UploadedFile> $photos */

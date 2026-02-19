@@ -335,7 +335,7 @@ class ExpedienteService extends BaseService implements ExpedienteServiceInterfac
                 throw new DomainActionException('El solicitante seleccionado está desactivado.');
             }
 
-            $tracking = 'EXP-'.(string) Str::ulid();
+            $tracking = 'TRK-'.(string) Str::ulid();
             $qrToken = hash('sha256', (string) Str::ulid().Str::random(40));
 
             $expediente = Expediente::query()->create([

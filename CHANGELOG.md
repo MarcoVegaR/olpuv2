@@ -1,3 +1,9 @@
+# [1.3.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.4...v1.3.0) (2026-02-19)
+
+### Features
+
+- **expedientes:** improve reception and inspection upload UX ([27ea706](https://github.com/MarcoVegaR/olpuv2/commit/27ea70639f2b20373558406bdddc8f6a8f3b9ae2))
+
 ## [1.2.4](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.3...v1.2.4) (2026-02-12)
 
 ### Bug Fixes

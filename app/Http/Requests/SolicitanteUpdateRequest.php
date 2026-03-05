@@ -11,19 +11,20 @@ class SolicitanteUpdateRequest extends BaseUpdateRequest
 {
     public function authorize(): bool
     {
-        $solicitante = $this->route('solicitante');
-
-        return $solicitante instanceof Solicitante
-            ? ($this->user()?->can('update', $solicitante) === true)
-            : false;
+        // La autorización de update se realiza en middleware de ruta
+        // (permission:solicitantes.update) y en el controlador mediante Policy.
+        // Evitamos depender de route model binding aquí para no generar 403 falsos.
+        return true;
     }
 
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        /** @var Solicitante|null $solicitante */
+        /** @var Solicitante|int|string|null $solicitante */
         $solicitante = $this->route('solicitante');
-        $id = $solicitante?->getKey();
+        $id = $solicitante instanceof Solicitante
+            ? $solicitante->getKey()
+            : (is_scalar($solicitante) && is_numeric((string) $solicitante) ? (int) $solicitante : null);
         $tipo = strtoupper((string) $this->input('tipo_documento'));
 
         return [

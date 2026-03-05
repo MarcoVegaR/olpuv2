@@ -121,6 +121,10 @@ Route::middleware(['auth', 'verified'])->prefix('procedures')->group(function ()
         ->middleware('permission:expedientes.files.view')
         ->name('expedientes.inspectionFiles.download');
 
+    Route::get('/expedientes/{expediente}/response-files/{file}', [ExpedienteController::class, 'downloadResponseFile'])
+        ->middleware('permission:expedientes.files.view')
+        ->name('expedientes.responseFiles.download');
+
     // Workflow actions
     Route::patch('/expedientes/{expediente}/assign-reviewer', [ExpedienteController::class, 'assignReviewer'])
         ->middleware('permission:expedientes.assign.reviewer')

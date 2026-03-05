@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ExpedienteResponse extends Model
 {
@@ -37,5 +38,11 @@ class ExpedienteResponse extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    /** @return HasMany<ExpedienteResponseFile, $this> */
+    public function files(): HasMany
+    {
+        return $this->hasMany(ExpedienteResponseFile::class, 'response_id');
     }
 }

@@ -15,6 +15,7 @@ use App\Models\ExpedienteEvent;
 use App\Models\ExpedienteInspectionFile;
 use App\Models\ExpedienteRequirement;
 use App\Models\ExpedienteRequirementFile;
+use App\Models\ExpedienteResponseFile;
 use App\Models\ProcedureType;
 use App\Models\User;
 use App\Services\ExpedienteWorkflowService;
@@ -216,6 +217,7 @@ class ExpedienteController extends BaseIndexController
                     'events',
                     'latestInspection.files',
                     'latestResponse',
+                    'latestResponse.files',
                     'decisionFiles',
                     'reviewer',
                     'inspector',
@@ -365,6 +367,28 @@ class ExpedienteController extends BaseIndexController
         return Storage::disk($disk)->download($path, $name);
     }
 
+    public function downloadResponseFile(Request $request, Expediente $expediente, ExpedienteResponseFile $file): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('filesView', $expediente);
+
+        $response = $file->response;
+        if (! $response || (int) $response->getAttribute('expediente_id') !== (int) $expediente->getKey()) {
+            abort(404);
+        }
+
+        $disk = (string) $file->getAttribute('disk');
+        $path = (string) $file->getAttribute('path');
+        $name = (string) $file->getAttribute('original_name');
+
+        if ($request->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $name, [
+                'Content-Disposition' => 'inline; filename="'.$name.'"',
+            ]);
+        }
+
+        return Storage::disk($disk)->download($path, $name);
+    }
+
     public function downloadInspectionFile(Request $request, Expediente $expediente, ExpedienteInspectionFile $file): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $this->authorize('filesView', $expediente);
@@ -470,11 +494,14 @@ class ExpedienteController extends BaseIndexController
             'inspected_at.required' => 'La fecha de inspección es obligatoria.',
             'inspected_at.date' => 'La fecha de inspección no es válida.',
             'photos.max' => 'No puede subir más de 20 fotos.',
+            'photos.*.uploaded' => 'No se pudo subir una de las fotos. Verifique el tamaño del archivo y los límites del servidor.',
             'photos.*.file' => 'La foto no se pudo subir. Verifique que el archivo no esté dañado y no supere los 10 MB.',
             'photos.*.image' => 'Cada foto debe ser una imagen válida (JPG, PNG o WEBP). Verifique que el archivo no esté dañado.',
             'photos.*.mimetypes' => 'Solo se permiten imágenes en formato JPG, PNG o WEBP.',
             'photos.*.max' => 'Cada foto no debe superar los 10 MB. Reduzca el tamaño de la imagen e intente nuevamente.',
             'reports.max' => 'No puede subir más de 5 informes.',
+            'reports.*.uploaded' => 'No se pudo subir uno de los informes. Verifique el tamaño del archivo y los límites del servidor.',
+            'reports.*.file' => 'El informe no se pudo subir. Verifique que el archivo no esté dañado y no supere los 10 MB.',
             'reports.*.mimetypes' => 'Solo se permiten informes en formato PDF, DOC o DOCX.',
             'reports.*.max' => 'Cada informe no debe superar los 10 MB.',
         ]);
@@ -484,7 +511,13 @@ class ExpedienteController extends BaseIndexController
         /** @var array<\Illuminate\Http\UploadedFile> $reports */
         $reports = $request->file('reports') ?? [];
 
-        $this->workflow->submitInspection($expediente, $validated, $photos, $reports, $request->user());
+        try {
+            $this->workflow->submitInspection($expediente, $validated, $photos, $reports, $request->user());
+        } catch (DomainActionException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'workflow' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('expedientes.show', $expediente->getKey())
             ->with('success', 'Inspección registrada correctamente.');
@@ -496,9 +529,28 @@ class ExpedienteController extends BaseIndexController
 
         $validated = $request->validate([
             'content' => ['required', 'string', 'max:10000'],
+            'files' => ['nullable', 'array', 'max:5'],
+            'files.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
+        ], [
+            'content.required' => 'La respuesta técnica es obligatoria.',
+            'content.max' => 'La respuesta técnica no debe exceder 10.000 caracteres.',
+            'files.max' => 'No puede subir más de 5 archivos de respuesta.',
+            'files.*.uploaded' => 'No se pudo subir uno de los archivos. Verifique el tamaño del archivo y los límites del servidor.',
+            'files.*.file' => 'Uno de los archivos no se pudo procesar. Verifique que no esté dañado.',
+            'files.*.mimes' => 'Solo se permiten archivos PDF, DOC o DOCX en la respuesta técnica.',
+            'files.*.max' => 'Cada archivo no debe superar los 10 MB.',
         ]);
 
-        $this->workflow->submitResponse($expediente, $validated['content'], $request->user());
+        /** @var array<\Illuminate\Http\UploadedFile> $files */
+        $files = $request->file('files') ?? [];
+
+        try {
+            $this->workflow->submitResponse($expediente, $validated['content'], $files, $request->user());
+        } catch (DomainActionException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'workflow' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('expedientes.show', $expediente->getKey())
             ->with('success', 'Respuesta técnica enviada.');

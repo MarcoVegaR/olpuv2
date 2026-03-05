@@ -85,6 +85,7 @@ type LatestResponse = {
     content: string;
     submitted_at?: string | null;
     reviewer?: SimpleUser | null;
+    files?: DecisionFile[];
 };
 
 type DecisionFile = { id: number; original_name: string; mime: string; size: number };
@@ -202,6 +203,7 @@ export default function ExpedienteShow({
 
     const [inspPhotos, setInspPhotos] = React.useState<File[]>([]);
     const [inspReports, setInspReports] = React.useState<File[]>([]);
+    const [responseFiles, setResponseFiles] = React.useState<File[]>([]);
     const [decFiles, setDecFiles] = React.useState<File[]>([]);
 
     // Edit form state
@@ -543,6 +545,8 @@ export default function ExpedienteShow({
                     setInspPhotos={setInspPhotos}
                     inspReports={inspReports}
                     setInspReports={setInspReports}
+                    responseFiles={responseFiles}
+                    setResponseFiles={setResponseFiles}
                     decFiles={decFiles}
                     setDecFiles={setDecFiles}
                     onAssignReviewer={() => patchAction(`${base}/assign-reviewer`, { reviewer_id: Number(reviewerId) }, 'Revisor asignado')}
@@ -554,7 +558,11 @@ export default function ExpedienteShow({
                         if (inspReports.length) fd.reports = inspReports;
                         postAction(`${base}/inspection`, fd, 'Inspección registrada');
                     }}
-                    onSubmitResponse={() => postAction(`${base}/response`, { content: responseContent }, 'Respuesta técnica enviada')}
+                    onSubmitResponse={() => {
+                        const fd: Record<string, unknown> = { content: responseContent };
+                        if (responseFiles.length) fd.files = responseFiles;
+                        postAction(`${base}/response`, fd, 'Respuesta técnica enviada');
+                    }}
                     onIssueDecision={() => {
                         const fd: Record<string, unknown> = { ...decForm };
                         if (decFiles.length) fd.files = decFiles;
@@ -806,6 +814,23 @@ export default function ExpedienteShow({
                                         <div className="rounded-md bg-gray-50 p-2.5 whitespace-pre-wrap dark:bg-gray-800/50">
                                             {item.latest_response.content}
                                         </div>
+                                        {(item.latest_response.files ?? []).length > 0 && (
+                                            <div className="space-y-1">
+                                                <span className="text-muted-foreground text-xs font-medium">Adjuntos de respuesta:</span>
+                                                {(item.latest_response.files ?? []).map((f) => (
+                                                    <a
+                                                        key={f.id}
+                                                        href={`${base}/response-files/${f.id}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                                    >
+                                                        <FileText className="h-3.5 w-3.5" /> {f.original_name}
+                                                        <span className="text-muted-foreground text-xs">({Math.round(f.size / 1024)} KB)</span>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             )}
@@ -1066,6 +1091,8 @@ type WFProps = {
     setInspPhotos: React.Dispatch<React.SetStateAction<File[]>>;
     inspReports: File[];
     setInspReports: React.Dispatch<React.SetStateAction<File[]>>;
+    responseFiles: File[];
+    setResponseFiles: React.Dispatch<React.SetStateAction<File[]>>;
     decFiles: File[];
     setDecFiles: React.Dispatch<React.SetStateAction<File[]>>;
     onAssignReviewer: () => void;
@@ -1274,6 +1301,18 @@ function WorkflowActions(p: WFProps) {
                             onChange={(e) => p.setResponseContent(e.target.value)}
                             placeholder="Escriba la respuesta técnica…"
                         />
+                        <div className="space-y-2">
+                            <Label className="text-base">Adjuntos de respuesta (PDF/Word)</Label>
+                            <MultiFilePicker
+                                files={p.responseFiles}
+                                onChange={p.setResponseFiles}
+                                accept=".pdf,.doc,.docx"
+                                maxFiles={5}
+                                maxSizeMB={10}
+                                hint="PDF, DOC o DOCX — Máx. 10 MB por archivo, hasta 5"
+                                disabled={p.submitting}
+                            />
+                        </div>
                         <Button size="lg" className="text-base" disabled={!p.responseContent.trim() || p.submitting} onClick={p.onSubmitResponse}>
                             <Send className="h-5 w-5" /> Enviar respuesta
                         </Button>

@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Contracts\Services\ExpedienteServiceInterface;
 use App\DTO\ListQuery;
 use App\Exceptions\DomainActionException;
+use App\Mail\ExpedienteReceivedMail;
 use App\Models\Expediente;
 use App\Models\ExpedienteDecisionFile;
 use App\Models\ExpedienteEvent;
@@ -15,6 +16,7 @@ use App\Models\ExpedienteInspectionFile;
 use App\Models\ExpedienteRequirement;
 use App\Models\ExpedienteRequirementFile;
 use App\Models\ExpedienteResponse;
+use App\Models\ExpedienteResponseFile;
 use App\Models\ProcedureType;
 use App\Models\Requirement;
 use App\Models\Solicitante;
@@ -22,6 +24,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -234,11 +237,24 @@ class ExpedienteService extends BaseService implements ExpedienteServiceInterfac
             'name' => (string) $resp->reviewer->getAttribute('name'),
         ] : null;
 
+        $files = [];
+        if ($resp->relationLoaded('files')) {
+            $files = $resp->files->map(function (ExpedienteResponseFile $f): array {
+                return [
+                    'id' => (int) $f->getKey(),
+                    'original_name' => (string) $f->getAttribute('original_name'),
+                    'mime' => (string) $f->getAttribute('mime'),
+                    'size' => (int) $f->getAttribute('size'),
+                ];
+            })->values()->toArray();
+        }
+
         return [
             'id' => (int) $resp->getKey(),
             'content' => (string) $resp->getAttribute('content'),
             'submitted_at' => $this->toIso($resp->getAttribute('submitted_at')),
             'reviewer' => $reviewer,
+            'files' => $files,
         ];
     }
 
@@ -383,6 +399,30 @@ class ExpedienteService extends BaseService implements ExpedienteServiceInterfac
                 'solicitante' => (string) $solicitante->getAttribute('nombre_razon_social'),
                 'tracking' => $tracking,
             ]);
+
+            // Send email notification to solicitante if confirmed and email exists
+            if ($confirm && $solicitante->getAttribute('email')) {
+                $expediente->loadMissing(['requirements.requirement']);
+
+                $requirementsData = $expediente->requirements->map(function ($expReq) {
+                    return [
+                        'name' => $expReq->requirement?->getAttribute('name') ?? 'N/A',
+                        'is_required' => (bool) $expReq->getAttribute('is_required'),
+                        'physical_received' => (bool) $expReq->getAttribute('physical_received'),
+                    ];
+                })->toArray();
+
+                $trackingUrl = route('public.tracking').'?q='.$tracking;
+
+                Mail::to((string) $solicitante->getAttribute('email'))
+                    ->send(new ExpedienteReceivedMail(
+                        expediente: $expediente,
+                        procedureTypeName: (string) $procedureType->getAttribute('name'),
+                        solicitanteNombre: (string) $solicitante->getAttribute('nombre_razon_social'),
+                        requirements: $requirementsData,
+                        trackingUrl: $trackingUrl,
+                    ));
+            }
 
             return $expediente;
         });

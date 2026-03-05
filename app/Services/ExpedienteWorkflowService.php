@@ -11,6 +11,7 @@ use App\Models\ExpedienteEvent;
 use App\Models\ExpedienteInspection;
 use App\Models\ExpedienteInspectionFile;
 use App\Models\ExpedienteResponse;
+use App\Models\ExpedienteResponseFile;
 use App\Models\ProcedureType;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -180,11 +181,14 @@ class ExpedienteWorkflowService
         });
     }
 
-    public function submitResponse(Expediente $expediente, string $content, User $actor): ExpedienteResponse
+    /**
+     * @param  array<UploadedFile>  $files
+     */
+    public function submitResponse(Expediente $expediente, string $content, array $files, User $actor): ExpedienteResponse
     {
         $this->assertStatus($expediente, self::STATUS_PENDING_RESPONSE);
 
-        return DB::transaction(function () use ($expediente, $content, $actor): ExpedienteResponse {
+        return DB::transaction(function () use ($expediente, $content, $files, $actor): ExpedienteResponse {
             /** @var ExpedienteResponse $response */
             $response = ExpedienteResponse::query()->create([
                 'expediente_id' => $expediente->getKey(),
@@ -193,12 +197,15 @@ class ExpedienteWorkflowService
                 'submitted_at' => now(),
             ]);
 
+            $this->storeResponseFiles($response, $files, $actor);
+
             $nextStatus = $this->resolveNextStatus($expediente, self::STATUS_PENDING_DECISION);
             $expediente->setAttribute('status', $nextStatus);
             $expediente->save();
 
             $this->recordEvent($expediente, 'response_submitted', 'Respuesta técnica enviada', $actor, [
                 'response_id' => $response->getKey(),
+                'files_count' => count($files),
             ]);
 
             return $response;
@@ -636,6 +643,42 @@ class ExpedienteWorkflowService
 
             ExpedienteDecisionFile::query()->create([
                 'expediente_id' => $expediente->getKey(),
+                'disk' => $disk,
+                'path' => $storedPath,
+                'original_name' => $file->getClientOriginalName(),
+                'mime' => (string) $file->getClientMimeType(),
+                'size' => (int) $file->getSize(),
+                'sha256' => $hash ?: null,
+                'uploaded_by' => $actor->getKey(),
+                'uploaded_at' => now(),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<UploadedFile>  $files
+     */
+    protected function storeResponseFiles(ExpedienteResponse $response, array $files, User $actor): void
+    {
+        $disk = 'local';
+        $basePath = 'expedientes/responses/'.$response->getKey();
+
+        foreach ($files as $file) {
+            $ext = $file->getClientOriginalExtension() ?: 'bin';
+            $storedPath = $file->storeAs($basePath, Str::ulid()->toBase32().'.'.$ext, $disk);
+
+            if ($storedPath === false) {
+                throw new DomainActionException('Error al almacenar archivo de respuesta técnica.');
+            }
+
+            $hash = null;
+            $fullPath = Storage::disk($disk)->path($storedPath);
+            if (file_exists($fullPath)) {
+                $hash = hash_file('sha256', $fullPath);
+            }
+
+            ExpedienteResponseFile::query()->create([
+                'response_id' => $response->getKey(),
                 'disk' => $disk,
                 'path' => $storedPath,
                 'original_name' => $file->getClientOriginalName(),

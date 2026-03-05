@@ -1,3 +1,9 @@
+# [1.4.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.3.0...v1.4.0) (2026-03-05)
+
+### Features
+
+- mejoras en flujo de expedientes y validaciones ([ec91090](https://github.com/MarcoVegaR/olpuv2/commit/ec9109076917c356485ee088bceaab4d917e8664))
+
 # [1.3.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.2.4...v1.3.0) (2026-02-19)
 
 ### Features

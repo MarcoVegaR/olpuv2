@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/MarcoVegaR/olpuv2/compare/v1.4.0...v1.4.1) (2026-03-06)
+
+### Bug Fixes
+
+- stabilize expediente workflow ui and decision flow ([f7789b3](https://github.com/MarcoVegaR/olpuv2/commit/f7789b3cbbb5e55410ff0e171beb3508abab237e))
+
 # [1.4.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.3.0...v1.4.0) (2026-03-05)
 
 ### Features

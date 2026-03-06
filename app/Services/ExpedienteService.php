@@ -124,6 +124,10 @@ class ExpedienteService extends BaseService implements ExpedienteServiceInterfac
                 'id' => (int) $procedureType->getAttribute('id'),
                 'code' => (string) $procedureType->getAttribute('code'),
                 'name' => (string) $procedureType->getAttribute('name'),
+                'inspection_requires_photos' => (bool) ($procedureType->getAttribute('inspection_requires_photos') ?? false),
+                'inspection_requires_report' => (bool) ($procedureType->getAttribute('inspection_requires_report') ?? false),
+                'decision_requires_document' => (bool) ($procedureType->getAttribute('decision_requires_document') ?? false),
+                'has_validity' => (bool) ($procedureType->getAttribute('has_validity') ?? false),
             ] : null,
             'solicitante' => $solicitante ? [
                 'id' => (int) $solicitante->getAttribute('id'),
@@ -268,6 +272,7 @@ class ExpedienteService extends BaseService implements ExpedienteServiceInterfac
         return $m->decisionFiles->map(function (ExpedienteDecisionFile $f): array {
             return [
                 'id' => (int) $f->getKey(),
+                'kind' => (string) $f->getAttribute('kind'),
                 'original_name' => (string) $f->getAttribute('original_name'),
                 'mime' => (string) $f->getAttribute('mime'),
                 'size' => (int) $f->getAttribute('size'),

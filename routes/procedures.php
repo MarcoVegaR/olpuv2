@@ -125,6 +125,10 @@ Route::middleware(['auth', 'verified'])->prefix('procedures')->group(function ()
         ->middleware('permission:expedientes.files.view')
         ->name('expedientes.responseFiles.download');
 
+    Route::get('/expedientes/{expediente}/decision-files/{file}', [ExpedienteController::class, 'downloadDecisionFile'])
+        ->middleware('permission:expedientes.files.view')
+        ->name('expedientes.decisionFiles.download');
+
     // Workflow actions
     Route::patch('/expedientes/{expediente}/assign-reviewer', [ExpedienteController::class, 'assignReviewer'])
         ->middleware('permission:expedientes.assign.reviewer')
@@ -149,6 +153,10 @@ Route::middleware(['auth', 'verified'])->prefix('procedures')->group(function ()
     Route::patch('/expedientes/{expediente}/decision', [ExpedienteController::class, 'issueDecision'])
         ->middleware('permission:expedientes.decision.issue')
         ->name('expedientes.issueDecision');
+
+    Route::post('/expedientes/{expediente}/decision-document', [ExpedienteController::class, 'uploadFinalDecisionDocument'])
+        ->middleware('permission:expedientes.decision.files')
+        ->name('expedientes.uploadFinalDecisionDocument');
 
     Route::patch('/expedientes/{expediente}/return', [ExpedienteController::class, 'returnToPhase'])
         ->middleware('permission:expedientes.phase.return')

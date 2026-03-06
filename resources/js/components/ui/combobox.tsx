@@ -93,6 +93,13 @@ function defaultGetOptionId(opt: Option) {
   return `opt-${opt.group ? opt.group + "-" : ""}${opt.value}`
 }
 
+function normalizeForSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
 export function Combobox({
   id,
   options,
@@ -369,7 +376,7 @@ export function Combobox({
           filter={(value, search) => {
             // default cmdk filter; return 1 for keep, 0 for hide
             if (!search) return 1
-            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+            return normalizeForSearch(value).includes(normalizeForSearch(search)) ? 1 : 0
           }}
           onValueChange={(val) => {
             debug('query change', val)

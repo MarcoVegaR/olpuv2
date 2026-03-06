@@ -40,6 +40,7 @@ class UsersSeeder extends Seeder
                 'expedientes.files.view',
                 'expedientes.files.upload',
                 'expedientes.files.replace',
+                'expedientes.decision.files',
                 'expedientes.export',
                 'solicitantes.view',
                 'solicitantes.create',

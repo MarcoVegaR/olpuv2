@@ -37,6 +37,8 @@ const STATUS_LABELS: Record<string, string> = {
     in_inspection: 'En inspección',
     pending_response: 'Por respuesta',
     pending_decision: 'Por decisión',
+    pending_final_doc: 'Por decisión',
+    pending_final_document: 'Por decisión',
     completed: 'Completado',
     rejected: 'Rechazado',
     partial: 'Parcial',

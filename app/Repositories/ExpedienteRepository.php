@@ -48,7 +48,14 @@ class ExpedienteRepository extends BaseRepository implements ExpedienteRepositor
     {
         return [
             'status' => function (Builder $b, $v): void {
-                $b->where('status', (string) $v);
+                $status = (string) $v;
+                if ($status === 'pending_decision') {
+                    $b->whereIn('status', ['pending_decision', 'pending_final_doc', 'pending_final_document']);
+
+                    return;
+                }
+
+                $b->where('status', $status);
             },
             'procedure_type_id' => function (Builder $b, $v): void {
                 $b->where('procedure_type_id', (int) $v);

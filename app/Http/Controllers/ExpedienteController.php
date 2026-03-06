@@ -11,6 +11,7 @@ use App\Http\Requests\ExpedienteIndexRequest;
 use App\Http\Requests\ExpedienteShowRequest;
 use App\Http\Requests\ExpedienteStoreRequest;
 use App\Models\Expediente;
+use App\Models\ExpedienteDecisionFile;
 use App\Models\ExpedienteEvent;
 use App\Models\ExpedienteInspectionFile;
 use App\Models\ExpedienteRequirement;
@@ -131,6 +132,7 @@ class ExpedienteController extends BaseIndexController
                 'code' => (string) $t->getAttribute('code'),
                 'name' => (string) $t->getAttribute('name'),
                 'description' => $t->getAttribute('description'),
+                'reception_requires_all_recaudos' => (bool) ($t->getAttribute('reception_requires_all_recaudos') ?? false),
                 'requirements' => $t->requirements->map(function ($r): array {
                     $pivot = $r->getAttribute('pivot');
 
@@ -236,10 +238,13 @@ class ExpedienteController extends BaseIndexController
 
         // Phase validation warnings for the current status
         $status = (string) $expediente->getAttribute('status');
+        $hasDecision = (bool) $expediente->getAttribute('decision');
         $actionForStatus = match ($status) {
             'draft' => 'confirm',
             'in_inspection' => 'submitInspection',
-            'pending_decision' => 'issueDecision',
+            'pending_decision' => $hasDecision ? 'uploadFinalDecisionDocument' : null,
+            'pending_final_doc' => $hasDecision ? 'uploadFinalDecisionDocument' : null,
+            'pending_final_document' => $hasDecision ? 'uploadFinalDecisionDocument' : null,
             default => null,
         };
         $data['phaseWarnings'] = $actionForStatus
@@ -357,6 +362,27 @@ class ExpedienteController extends BaseIndexController
         $disk = (string) $expediente_requirement_file->getAttribute('disk');
         $path = (string) $expediente_requirement_file->getAttribute('path');
         $name = (string) $expediente_requirement_file->getAttribute('original_name');
+
+        if ($request->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $name, [
+                'Content-Disposition' => 'inline; filename="'.$name.'"',
+            ]);
+        }
+
+        return Storage::disk($disk)->download($path, $name);
+    }
+
+    public function downloadDecisionFile(Request $request, Expediente $expediente, ExpedienteDecisionFile $file): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('filesView', $expediente);
+
+        if ((int) $file->getAttribute('expediente_id') !== (int) $expediente->getKey()) {
+            abort(404);
+        }
+
+        $disk = (string) $file->getAttribute('disk');
+        $path = (string) $file->getAttribute('path');
+        $name = (string) $file->getAttribute('original_name');
 
         if ($request->boolean('inline')) {
             return Storage::disk($disk)->response($path, $name, [
@@ -565,17 +591,68 @@ class ExpedienteController extends BaseIndexController
             'notes' => ['nullable', 'string', 'max:5000'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
-            'files' => ['nullable', 'array', 'max:5'],
-            'files.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
+            'correction_files' => ['nullable', 'array', 'max:5'],
+            'correction_files.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
+        ], [
+            'decision.required' => 'Debe seleccionar una decisión.',
+            'decision.in' => 'La decisión seleccionada no es válida.',
+            'notes.max' => 'Las observaciones no deben exceder 5.000 caracteres.',
+            'valid_from.date' => 'La fecha de inicio de vigencia no es válida.',
+            'valid_until.date' => 'La fecha de fin de vigencia no es válida.',
+            'valid_until.after_or_equal' => 'La fecha de fin de vigencia no puede ser menor que la fecha de inicio.',
+            'correction_files.max' => 'No puede subir más de 5 archivos de corrección.',
+            'correction_files.*.uploaded' => 'No se pudo subir uno de los archivos de corrección. Verifique el tamaño del archivo y los límites del servidor.',
+            'correction_files.*.file' => 'Uno de los archivos de corrección no se pudo procesar. Verifique que no esté dañado.',
+            'correction_files.*.mimes' => 'Solo se permiten archivos PDF, DOC o DOCX como corrección.',
+            'correction_files.*.max' => 'Cada archivo de corrección no debe superar los 10 MB.',
+        ]);
+
+        /** @var array<\Illuminate\Http\UploadedFile> $correctionFiles */
+        $correctionFiles = $request->file('correction_files') ?? [];
+
+        try {
+            $this->workflow->issueDecision($expediente, $validated, $correctionFiles, $request->user());
+        } catch (DomainActionException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'workflow' => $e->getMessage(),
+            ]);
+        }
+
+        return redirect()->route('expedientes.show', $expediente->getKey())
+            ->with('success', 'Decisión emitida correctamente. Pendiente adjuntar documento final firmado.');
+    }
+
+    public function uploadFinalDecisionDocument(Request $request, Expediente $expediente): RedirectResponse
+    {
+        $this->authorize('uploadDecisionFiles', $expediente);
+
+        $validated = $request->validate([
+            'files' => ['required', 'array', 'min:1', 'max:5'],
+            'files.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ], [
+            'files.required' => 'Debe adjuntar al menos un archivo del documento final firmado.',
+            'files.array' => 'Los archivos del documento final no tienen un formato válido.',
+            'files.min' => 'Debe adjuntar al menos un archivo del documento final firmado.',
+            'files.max' => 'No puede subir más de 5 archivos del documento final.',
+            'files.*.uploaded' => 'No se pudo subir uno de los archivos del documento final. Verifique el tamaño del archivo y los límites del servidor.',
+            'files.*.file' => 'Uno de los archivos del documento final no se pudo procesar. Verifique que no esté dañado.',
+            'files.*.mimes' => 'Solo se permiten archivos PDF, JPG, PNG, DOC o DOCX para el documento final.',
+            'files.*.max' => 'Cada archivo del documento final no debe superar los 10 MB.',
         ]);
 
         /** @var array<\Illuminate\Http\UploadedFile> $files */
         $files = $request->file('files') ?? [];
 
-        $this->workflow->issueDecision($expediente, $validated, $files, $request->user());
+        try {
+            $this->workflow->attachFinalDecisionDocument($expediente, $files, $request->user());
+        } catch (DomainActionException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'workflow' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('expedientes.show', $expediente->getKey())
-            ->with('success', 'Decisión emitida correctamente.');
+            ->with('success', 'Documento final adjuntado y trámite concluido correctamente.');
     }
 
     public function returnToPhase(Request $request, Expediente $expediente): RedirectResponse

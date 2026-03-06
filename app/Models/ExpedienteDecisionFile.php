@@ -19,6 +19,7 @@ class ExpedienteDecisionFile extends Model
     /** @var list<string> */
     protected $fillable = [
         'expediente_id',
+        'kind',
         'disk',
         'path',
         'original_name',
@@ -33,6 +34,7 @@ class ExpedienteDecisionFile extends Model
     protected function casts(): array
     {
         return [
+            'kind' => 'string',
             'uploaded_at' => 'datetime',
             'size' => 'integer',
         ];

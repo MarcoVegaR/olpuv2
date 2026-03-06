@@ -21,6 +21,33 @@ function formatSize(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getAcceptedTokens(accept?: string): string[] {
+    return (accept ?? '')
+        .split(',')
+        .map((token) => token.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function matchesAcceptedType(file: File, acceptedTokens: string[]): boolean {
+    if (acceptedTokens.length === 0) return true;
+
+    const fileName = file.name.toLowerCase();
+    const mime = file.type.toLowerCase();
+
+    return acceptedTokens.some((token) => {
+        if (token.startsWith('.')) {
+            return fileName.endsWith(token);
+        }
+
+        if (token.endsWith('/*')) {
+            const group = token.slice(0, -1);
+            return mime.startsWith(group);
+        }
+
+        return mime === token;
+    });
+}
+
 export function MultiFilePicker({
     files,
     onChange,
@@ -36,6 +63,7 @@ export function MultiFilePicker({
     const [errors, setErrors] = React.useState<string[]>([]);
     const [previews, setPreviews] = React.useState<Record<string, string>>({});
 
+    const acceptedTokens = React.useMemo(() => getAcceptedTokens(accept), [accept]);
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     const canAdd = files.length < maxFiles && !disabled;
 
@@ -61,6 +89,10 @@ export function MultiFilePicker({
             const toAdd: File[] = [];
 
             Array.from(incoming).forEach((file) => {
+                if (!matchesAcceptedType(file, acceptedTokens)) {
+                    newErrors.push(`"${file.name}" no tiene un formato permitido.`);
+                    return;
+                }
                 if (file.size > maxSizeBytes) {
                     newErrors.push(`"${file.name}" excede ${maxSizeMB} MB (${formatSize(file.size)}).`);
                     return;
@@ -82,7 +114,7 @@ export function MultiFilePicker({
                 onChange([...files, ...toAdd]);
             }
         },
-        [files, onChange, maxFiles, maxSizeBytes, maxSizeMB],
+        [acceptedTokens, files, onChange, maxFiles, maxSizeBytes, maxSizeMB],
     );
 
     const removeFile = (index: number) => {

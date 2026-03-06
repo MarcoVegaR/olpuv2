@@ -85,10 +85,11 @@ type LatestResponse = {
     content: string;
     submitted_at?: string | null;
     reviewer?: SimpleUser | null;
-    files?: DecisionFile[];
+    files?: ResponseFile[];
 };
 
-type DecisionFile = { id: number; original_name: string; mime: string; size: number };
+type ResponseFile = { id: number; original_name: string; mime: string; size: number };
+type DecisionFile = { id: number; kind: string; original_name: string; mime: string; size: number };
 
 type ExpedienteItem = {
     id: number;
@@ -99,7 +100,15 @@ type ExpedienteItem = {
     codigo_catastral?: string | null;
     observaciones?: string | null;
     is_active: boolean;
-    procedure_type?: { id: number; code: string; name: string } | null;
+    procedure_type?: {
+        id: number;
+        code: string;
+        name: string;
+        inspection_requires_photos?: boolean;
+        inspection_requires_report?: boolean;
+        decision_requires_document?: boolean;
+        has_validity?: boolean;
+    } | null;
     solicitante?: {
         id: number;
         tipo_documento: string;
@@ -150,9 +159,18 @@ const PHASES = [
     { key: 'completed', label: 'Completado' },
 ] as const;
 
+function normalizeWorkflowStatus(status: string): string {
+    if (status === 'pending_final_doc' || status === 'pending_final_document') {
+        return 'pending_decision';
+    }
+
+    return status;
+}
+
 function phaseIndex(status: string): number {
-    const idx = PHASES.findIndex((p) => p.key === status);
-    if (status === 'completed' || status === 'rejected') return PHASES.length - 1;
+    const normalizedStatus = normalizeWorkflowStatus(status);
+    const idx = PHASES.findIndex((p) => p.key === normalizedStatus);
+    if (['completed', 'rejected', 'partial', 'suspended'].includes(normalizedStatus)) return PHASES.length - 1;
     return idx >= 0 ? idx : 0;
 }
 
@@ -178,6 +196,7 @@ export default function ExpedienteShow({
     const canInspection = can('expedientes.inspection.submit');
     const canResponse = can('expedientes.response.submit');
     const canDecision = can('expedientes.decision.issue');
+    const canDecisionFiles = can('expedientes.decision.files');
     const canReturn = can('expedientes.phase.return');
 
     const breadcrumbs = [
@@ -186,8 +205,9 @@ export default function ExpedienteShow({
     ];
 
     const requirements = (item.requirements ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
+    const normalizedStatus = normalizeWorkflowStatus(item.status);
     const sl = statusLabels ?? {};
-    const statusLabel = sl[item.status] ?? item.status ?? '—';
+    const statusLabel = sl[item.status] ?? sl[normalizedStatus] ?? normalizedStatus ?? '—';
 
     const [uploadingId, setUploadingId] = React.useState<number | null>(null);
     const fileInputRefs = React.useRef<Record<number, HTMLInputElement | null>>({});
@@ -205,6 +225,7 @@ export default function ExpedienteShow({
     const [inspReports, setInspReports] = React.useState<File[]>([]);
     const [responseFiles, setResponseFiles] = React.useState<File[]>([]);
     const [decFiles, setDecFiles] = React.useState<File[]>([]);
+    const [finalDecisionFiles, setFinalDecisionFiles] = React.useState<File[]>([]);
 
     // Edit form state
     const [editing, setEditing] = React.useState(false);
@@ -518,12 +539,17 @@ export default function ExpedienteShow({
 
                 {/* ── Workflow Actions (prominent) ────────────────── */}
                 <WorkflowActions
-                    status={item.status}
+                    status={normalizedStatus}
+                    hasDecision={!!item.decision}
+                    inspectionRequiresPhotos={!!item.procedure_type?.inspection_requires_photos}
+                    inspectionRequiresReport={!!item.procedure_type?.inspection_requires_report}
+                    procedureHasValidity={!!item.procedure_type?.has_validity}
                     canAssignReviewer={canAssignReviewer}
                     canAssignInspector={canAssignInspector}
                     canInspection={canInspection}
                     canResponse={canResponse}
                     canDecision={canDecision}
+                    canDecisionFiles={canDecisionFiles}
                     canReturn={canReturn}
                     assignableReviewers={assignableReviewers ?? []}
                     assignableInspectors={assignableInspectors ?? []}
@@ -549,6 +575,8 @@ export default function ExpedienteShow({
                     setResponseFiles={setResponseFiles}
                     decFiles={decFiles}
                     setDecFiles={setDecFiles}
+                    finalDecisionFiles={finalDecisionFiles}
+                    setFinalDecisionFiles={setFinalDecisionFiles}
                     onAssignReviewer={() => patchAction(`${base}/assign-reviewer`, { reviewer_id: Number(reviewerId) }, 'Revisor asignado')}
                     onAssignInspector={() => patchAction(`${base}/assign-inspector`, { inspector_id: Number(inspectorId) }, 'Inspector asignado')}
                     onStartInspection={() => patchAction(`${base}/start-inspection`, {}, 'Inspección iniciada')}
@@ -565,8 +593,13 @@ export default function ExpedienteShow({
                     }}
                     onIssueDecision={() => {
                         const fd: Record<string, unknown> = { ...decForm };
-                        if (decFiles.length) fd.files = decFiles;
-                        patchAction(`${base}/decision`, fd, 'Decisión emitida');
+                        if (decFiles.length) fd.correction_files = decFiles;
+                        postAction(`${base}/decision`, { ...fd, _method: 'patch' }, 'Decisión emitida');
+                    }}
+                    onUploadFinalDecisionDocument={() => {
+                        const fd: Record<string, unknown> = {};
+                        if (finalDecisionFiles.length) fd.files = finalDecisionFiles;
+                        postAction(`${base}/decision-document`, fd, 'Documento final adjuntado');
                     }}
                     onReturn={() => patchAction(`${base}/return`, returnForm, 'Expediente devuelto')}
                 />
@@ -690,17 +723,61 @@ export default function ExpedienteShow({
                                                 value={`${item.valid_from} — ${item.valid_until ?? '?'}`}
                                             />
                                         )}
-                                        {(item.decision_files ?? []).length > 0 && (
-                                            <div className="space-y-1">
-                                                <span className="text-muted-foreground text-xs font-medium">Documentos adjuntos:</span>
-                                                {(item.decision_files ?? []).map((df) => (
-                                                    <div key={df.id} className="flex items-center gap-1.5">
-                                                        <Paperclip className="text-muted-foreground h-3.5 w-3.5" />
-                                                        {df.original_name}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const corrections = (item.decision_files ?? []).filter((df) => df.kind === 'correction');
+                                            const finalDocs = (item.decision_files ?? []).filter((df) => df.kind === 'decision_document');
+
+                                            if (corrections.length === 0 && finalDocs.length === 0) {
+                                                return null;
+                                            }
+
+                                            return (
+                                                <div className="space-y-2">
+                                                    {finalDocs.length > 0 && (
+                                                        <div className="space-y-1">
+                                                            <span className="text-muted-foreground text-xs font-medium">
+                                                                Documento final firmado:
+                                                            </span>
+                                                            {finalDocs.map((df) => (
+                                                                <a
+                                                                    key={df.id}
+                                                                    href={`${base}/decision-files/${df.id}`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                                                >
+                                                                    <FileText className="h-3.5 w-3.5" /> {df.original_name}
+                                                                    <span className="text-muted-foreground text-xs">
+                                                                        ({Math.round(df.size / 1024)} KB)
+                                                                    </span>
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {corrections.length > 0 && (
+                                                        <div className="space-y-1">
+                                                            <span className="text-muted-foreground text-xs font-medium">
+                                                                Correcciones de dirección:
+                                                            </span>
+                                                            {corrections.map((df) => (
+                                                                <a
+                                                                    key={df.id}
+                                                                    href={`${base}/decision-files/${df.id}`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                                                >
+                                                                    <Paperclip className="h-3.5 w-3.5" /> {df.original_name}
+                                                                    <span className="text-muted-foreground text-xs">
+                                                                        ({Math.round(df.size / 1024)} KB)
+                                                                    </span>
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </CardContent>
                                 </Card>
                             )}
@@ -1065,11 +1142,16 @@ export default function ExpedienteShow({
 
 type WFProps = {
     status: string;
+    hasDecision: boolean;
+    inspectionRequiresPhotos: boolean;
+    inspectionRequiresReport: boolean;
+    procedureHasValidity: boolean;
     canAssignReviewer: boolean;
     canAssignInspector: boolean;
     canInspection: boolean;
     canResponse: boolean;
     canDecision: boolean;
+    canDecisionFiles: boolean;
     canReturn: boolean;
     assignableReviewers: SimpleUser[];
     assignableInspectors: SimpleUser[];
@@ -1095,12 +1177,15 @@ type WFProps = {
     setResponseFiles: React.Dispatch<React.SetStateAction<File[]>>;
     decFiles: File[];
     setDecFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    finalDecisionFiles: File[];
+    setFinalDecisionFiles: React.Dispatch<React.SetStateAction<File[]>>;
     onAssignReviewer: () => void;
     onAssignInspector: () => void;
     onStartInspection: () => void;
     onSubmitInspection: () => void;
     onSubmitResponse: () => void;
     onIssueDecision: () => void;
+    onUploadFinalDecisionDocument: () => void;
     onReturn: () => void;
 };
 
@@ -1111,7 +1196,8 @@ function WorkflowActions(p: WFProps) {
     const showStartInspection = s === 'pending_inspector' && p.canInspection;
     const showSubmitInspection = s === 'in_inspection' && p.canInspection;
     const showSubmitResponse = s === 'pending_response' && p.canResponse;
-    const showIssueDecision = s === 'pending_decision' && p.canDecision;
+    const showIssueDecision = s === 'pending_decision' && p.canDecision && !p.hasDecision;
+    const showUploadFinalDecisionDocument = s === 'pending_decision' && p.canDecisionFiles && p.hasDecision;
     const showReturn = p.canReturn && p.returnablePhases.length > 0;
 
     const hasAction =
@@ -1121,8 +1207,25 @@ function WorkflowActions(p: WFProps) {
         showSubmitInspection ||
         showSubmitResponse ||
         showIssueDecision ||
+        showUploadFinalDecisionDocument ||
         showReturn;
     if (!hasAction) return null;
+
+    const inspectionObservations = p.inspForm.observations.trim();
+    const responseText = p.responseContent.trim();
+    const decisionNeedsValidity = p.procedureHasValidity && p.decForm.decision === 'approved';
+    const decisionHasDateRange = !!p.decForm.valid_from && !!p.decForm.valid_until;
+    const decisionDateRangeInvalid = decisionHasDateRange && p.decForm.valid_until < p.decForm.valid_from;
+    const canSubmitInspection =
+        !!p.inspForm.result &&
+        !!p.inspForm.inspected_at &&
+        !!inspectionObservations &&
+        (!p.inspectionRequiresPhotos || p.inspPhotos.length > 0) &&
+        (!p.inspectionRequiresReport || p.inspReports.length > 0) &&
+        !p.submitting;
+    const canSubmitResponse = !!responseText && !p.submitting;
+    const canIssueDecision = !!p.decForm.decision && (!decisionNeedsValidity || (decisionHasDateRange && !decisionDateRangeInvalid)) && !p.submitting;
+    const canUploadFinalDecisionDocument = p.finalDecisionFiles.length > 0 && !p.submitting;
 
     return (
         <Card className="mb-8 border-2 border-sky-300 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20">
@@ -1152,7 +1255,13 @@ function WorkflowActions(p: WFProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button size="lg" className="text-base" disabled={!p.reviewerId || p.submitting} onClick={p.onAssignReviewer}>
+                            <Button
+                                type="button"
+                                size="lg"
+                                className="text-base"
+                                disabled={!p.reviewerId || p.submitting}
+                                onClick={p.onAssignReviewer}
+                            >
                                 <UserCheck className="h-5 w-5" /> Asignar
                             </Button>
                         </div>
@@ -1177,7 +1286,13 @@ function WorkflowActions(p: WFProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button size="lg" className="text-base" disabled={!p.inspectorId || p.submitting} onClick={p.onAssignInspector}>
+                            <Button
+                                type="button"
+                                size="lg"
+                                className="text-base"
+                                disabled={!p.inspectorId || p.submitting}
+                                onClick={p.onAssignInspector}
+                            >
                                 <UserCheck className="h-5 w-5" /> Asignar
                             </Button>
                         </div>
@@ -1190,7 +1305,7 @@ function WorkflowActions(p: WFProps) {
                             <Search className="h-5 w-5" /> Iniciar Inspección
                         </Label>
                         <p className="text-muted-foreground text-base">Al iniciar, el inspector podrá registrar los resultados de su visita.</p>
-                        <Button size="lg" className="text-base" disabled={p.submitting} onClick={p.onStartInspection}>
+                        <Button type="button" size="lg" className="text-base" disabled={p.submitting} onClick={p.onStartInspection}>
                             <CheckCircle2 className="h-5 w-5" /> Iniciar inspección
                         </Button>
                     </div>
@@ -1235,6 +1350,7 @@ function WorkflowActions(p: WFProps) {
                                     type="date"
                                     className="py-3 text-base"
                                     value={p.inspForm.inspected_at}
+                                    onInput={(e) => p.setInspForm((prev) => ({ ...prev, inspected_at: (e.target as HTMLInputElement).value }))}
                                     onChange={(e) => p.setInspForm((prev) => ({ ...prev, inspected_at: e.target.value }))}
                                 />
                             </div>
@@ -1249,6 +1365,7 @@ function WorkflowActions(p: WFProps) {
                                 className="text-base"
                                 placeholder="Describa los hallazgos de la inspección…"
                                 value={p.inspForm.observations}
+                                onInput={(e) => p.setInspForm((prev) => ({ ...prev, observations: (e.target as HTMLTextAreaElement).value }))}
                                 onChange={(e) => p.setInspForm((prev) => ({ ...prev, observations: e.target.value }))}
                             />
                             <p className="text-muted-foreground text-xs">Máximo 5.000 caracteres.</p>
@@ -1278,12 +1395,7 @@ function WorkflowActions(p: WFProps) {
                                 disabled={p.submitting}
                             />
                         </div>
-                        <Button
-                            size="lg"
-                            className="text-base"
-                            disabled={!p.inspForm.result || !p.inspForm.inspected_at || !p.inspForm.observations || p.submitting}
-                            onClick={p.onSubmitInspection}
-                        >
+                        <Button type="button" size="lg" className="text-base" disabled={!canSubmitInspection} onClick={p.onSubmitInspection}>
                             <CheckCircle2 className="h-5 w-5" /> Registrar inspección
                         </Button>
                     </div>
@@ -1298,6 +1410,7 @@ function WorkflowActions(p: WFProps) {
                             rows={4}
                             className="text-base"
                             value={p.responseContent}
+                            onInput={(e) => p.setResponseContent((e.target as HTMLTextAreaElement).value)}
                             onChange={(e) => p.setResponseContent(e.target.value)}
                             placeholder="Escriba la respuesta técnica…"
                         />
@@ -1313,7 +1426,7 @@ function WorkflowActions(p: WFProps) {
                                 disabled={p.submitting}
                             />
                         </div>
-                        <Button size="lg" className="text-base" disabled={!p.responseContent.trim() || p.submitting} onClick={p.onSubmitResponse}>
+                        <Button type="button" size="lg" className="text-base" disabled={!canSubmitResponse} onClick={p.onSubmitResponse}>
                             <Send className="h-5 w-5" /> Enviar respuesta
                         </Button>
                     </div>
@@ -1347,6 +1460,7 @@ function WorkflowActions(p: WFProps) {
                             rows={3}
                             className="text-base"
                             value={p.decForm.notes}
+                            onInput={(e) => p.setDecForm((prev) => ({ ...prev, notes: (e.target as HTMLTextAreaElement).value }))}
                             onChange={(e) => p.setDecForm((prev) => ({ ...prev, notes: e.target.value }))}
                             placeholder="Observaciones (opcional)"
                         />
@@ -1357,6 +1471,7 @@ function WorkflowActions(p: WFProps) {
                                     type="date"
                                     className="py-3 text-base"
                                     value={p.decForm.valid_from}
+                                    onInput={(e) => p.setDecForm((prev) => ({ ...prev, valid_from: (e.target as HTMLInputElement).value }))}
                                     onChange={(e) => p.setDecForm((prev) => ({ ...prev, valid_from: e.target.value }))}
                                 />
                             </div>
@@ -1366,24 +1481,55 @@ function WorkflowActions(p: WFProps) {
                                     type="date"
                                     className="py-3 text-base"
                                     value={p.decForm.valid_until}
+                                    onInput={(e) => p.setDecForm((prev) => ({ ...prev, valid_until: (e.target as HTMLInputElement).value }))}
                                     onChange={(e) => p.setDecForm((prev) => ({ ...prev, valid_until: e.target.value }))}
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-base">Documento de decisión (PDF/Word)</Label>
+                            <Label className="text-base">Archivos corregidos por dirección (opcional)</Label>
                             <MultiFilePicker
                                 files={p.decFiles}
                                 onChange={p.setDecFiles}
                                 accept=".pdf,.doc,.docx"
                                 maxFiles={5}
                                 maxSizeMB={10}
-                                hint="PDF, DOC o DOCX — Máx. 10 MB por archivo, hasta 5"
+                                hint="PDF, DOC o DOCX — Máx. 10 MB por archivo, hasta 5. Se guardan como versión corregida, sin reemplazar originales."
                                 disabled={p.submitting}
                             />
                         </div>
-                        <Button size="lg" className="text-base" disabled={!p.decForm.decision || p.submitting} onClick={p.onIssueDecision}>
+                        <Button type="button" size="lg" className="text-base" disabled={!canIssueDecision} onClick={p.onIssueDecision}>
                             <Gavel className="h-5 w-5" /> Emitir decisión
+                        </Button>
+                    </div>
+                )}
+
+                {showUploadFinalDecisionDocument && (
+                    <div className="space-y-4">
+                        <Label className="flex items-center gap-2 text-base font-semibold">
+                            <FileUp className="h-5 w-5" /> Adjuntar documento final firmado
+                        </Label>
+                        <p className="text-muted-foreground text-sm">Cargue el documento escaneado firmado y sellado para concluir el trámite.</p>
+                        <div className="space-y-2">
+                            <Label className="text-base">Documento final (PDF/JPG/PNG/Word)</Label>
+                            <MultiFilePicker
+                                files={p.finalDecisionFiles}
+                                onChange={p.setFinalDecisionFiles}
+                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                maxFiles={5}
+                                maxSizeMB={10}
+                                hint="PDF, JPG, PNG, DOC o DOCX — Máx. 10 MB por archivo, hasta 5"
+                                disabled={p.submitting}
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            size="lg"
+                            className="text-base"
+                            disabled={!canUploadFinalDecisionDocument}
+                            onClick={p.onUploadFinalDecisionDocument}
+                        >
+                            <FileUp className="h-5 w-5" /> Adjuntar y concluir
                         </Button>
                     </div>
                 )}
@@ -1409,10 +1555,12 @@ function WorkflowActions(p: WFProps) {
                             rows={3}
                             className="text-base"
                             value={p.returnForm.reason}
+                            onInput={(e) => p.setReturnForm((prev) => ({ ...prev, reason: (e.target as HTMLTextAreaElement).value }))}
                             onChange={(e) => p.setReturnForm((prev) => ({ ...prev, reason: e.target.value }))}
                             placeholder="Motivo de la devolución (obligatorio)"
                         />
                         <Button
+                            type="button"
                             variant="outline"
                             size="lg"
                             className="text-base"
@@ -1463,6 +1611,8 @@ function eventIconColor(type: string): string {
             return 'border-blue-500 bg-blue-100 dark:bg-blue-900/40';
         case 'decision_issued':
             return 'border-amber-500 bg-amber-100 dark:bg-amber-900/40';
+        case 'decision_document_attached':
+            return 'border-emerald-500 bg-emerald-100 dark:bg-emerald-900/40';
         case 'returned_to_phase':
             return 'border-orange-500 bg-orange-100 dark:bg-orange-900/40';
         case 'requirement_received':

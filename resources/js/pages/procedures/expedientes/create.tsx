@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { FormDataConvertible, PageProps } from '@inertiajs/core';
@@ -19,6 +18,7 @@ type ProcedureType = {
     code: string;
     name: string;
     description?: string | null;
+    reception_requires_all_recaudos?: boolean;
     requirements: Array<{ id: number; code: string; name: string; description?: string | null; is_required: boolean; sort_order: number }>;
 };
 
@@ -59,6 +59,7 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
     });
 
     const [solicitanteQuery, setSolicitanteQuery] = React.useState('');
+    const [procedureTypeQuery, setProcedureTypeQuery] = React.useState('');
     const [solicitanteLoading, setSolicitanteLoading] = React.useState(false);
     const [solicitanteOptions, setSolicitanteOptions] = React.useState<Array<{ value: string; label: string }>>([]);
     const [solicitanteMap, setSolicitanteMap] = React.useState<
@@ -134,6 +135,30 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
         [procedureTypes, form.data.procedure_type_id],
     );
 
+    const normalizeText = React.useCallback((value: string) => {
+        return value
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+    }, []);
+
+    const procedureTypeOptions = React.useMemo(() => {
+        const q = normalizeText(procedureTypeQuery.trim());
+
+        return procedureTypes
+            .filter((t) => {
+                if (!q) return true;
+
+                const haystack = normalizeText(`${t.name} ${t.code} ${t.description ?? ''}`);
+
+                return haystack.includes(q);
+            })
+            .map((t) => ({
+                value: String(t.id),
+                label: `${t.name} (${t.code})`,
+            }));
+    }, [procedureTypes, procedureTypeQuery, normalizeText]);
+
     const errors = form.errors as Record<string, string | undefined>;
 
     const breadcrumbs = [
@@ -157,6 +182,22 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
         !!selectedType &&
         selectedType.requirements.length > 0 &&
         selectedType.requirements.every((r) => form.data.physical_received_requirement_ids.includes(r.id));
+
+    const requiredRequirementIds = React.useMemo(
+        () => selectedType?.requirements.filter((r) => r.is_required).map((r) => r.id) ?? [],
+        [selectedType],
+    );
+
+    const requiredChecklistSatisfied = React.useMemo(
+        () => requiredRequirementIds.every((id) => form.data.physical_received_requirement_ids.includes(id)),
+        [form.data.physical_received_requirement_ids, requiredRequirementIds],
+    );
+
+    const canSubmitReception =
+        !!form.data.solicitante_id &&
+        !!form.data.procedure_type_id &&
+        (!selectedType?.reception_requires_all_recaudos || requiredChecklistSatisfied) &&
+        !form.processing;
 
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -247,22 +288,16 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                                 </CardHeader>
                                 <CardContent className="grid gap-3 sm:grid-cols-2">
                                     <Field id="procedure_type_id" label="Tipo de trámite" required error={form.errors.procedure_type_id}>
-                                        <Select
+                                        <Combobox
+                                            options={procedureTypeOptions}
                                             disabled={!form.data.solicitante_id}
                                             value={form.data.procedure_type_id ? String(form.data.procedure_type_id) : ''}
-                                            onValueChange={(v) => form.setData('procedure_type_id', v ? Number(v) : '')}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Seleccione" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {procedureTypes.map((t) => (
-                                                    <SelectItem key={t.id} value={String(t.id)}>
-                                                        {t.name} ({t.code})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            onChange={(v) => form.setData('procedure_type_id', v ? Number(v) : '')}
+                                            placeholder="Seleccione un trámite"
+                                            searchPlaceholder="Buscar por nombre o código…"
+                                            emptyText="Sin trámites coincidentes"
+                                            onQueryChange={setProcedureTypeQuery}
+                                        />
                                     </Field>
 
                                     <Field id="numero_receptoria" label="N° receptoría" error={form.errors.numero_receptoria}>
@@ -296,7 +331,7 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
 
                             {/* Submit — inside left column so it stays visible next to checklist */}
                             <div className="flex justify-end py-3">
-                                <Button type="submit" size="lg" disabled={form.processing} className="px-8">
+                                <Button type="submit" size="lg" disabled={!canSubmitReception} className="px-8">
                                     <Save className="h-4 w-4" />
                                     Crear expediente
                                 </Button>

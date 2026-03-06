@@ -214,17 +214,15 @@ class ExpedienteWorkflowService
 
     /**
      * @param  array{decision: string, notes?: string|null, valid_from?: string|null, valid_until?: string|null}  $data
-     * @param  array<UploadedFile>  $files
+     * @param  array<UploadedFile>  $correctionFiles
      */
-    public function issueDecision(Expediente $expediente, array $data, array $files, User $actor): Expediente
+    public function issueDecision(Expediente $expediente, array $data, array $correctionFiles, User $actor): Expediente
     {
         $this->assertStatus($expediente, self::STATUS_PENDING_DECISION);
 
         if (! in_array($data['decision'], self::DECISIONS, true)) {
             throw new DomainActionException('Decisión no válida.');
         }
-
-        $this->enforcePreConditions($expediente, 'issueDecision', [], [], $files);
 
         /** @var ProcedureType|null $pt */
         $pt = $expediente->procedureType;
@@ -234,20 +232,13 @@ class ExpedienteWorkflowService
             }
         }
 
-        return DB::transaction(function () use ($expediente, $data, $files, $actor): Expediente {
-            $finalStatus = match ($data['decision']) {
-                'approved' => self::STATUS_COMPLETED,
-                'rejected' => self::STATUS_REJECTED,
-                'partial' => self::STATUS_PARTIAL,
-                default => self::STATUS_SUSPENDED,
-            };
-
+        return DB::transaction(function () use ($expediente, $data, $correctionFiles, $actor): Expediente {
             $expediente->setAttribute('decision', $data['decision']);
             $expediente->setAttribute('decision_notes', $data['notes'] ?? null);
             $expediente->setAttribute('decision_by', $actor->getKey());
             $expediente->setAttribute('decision_at', now());
-            $expediente->setAttribute('completed_at', now());
-            $expediente->setAttribute('status', $finalStatus);
+            $expediente->setAttribute('completed_at', null);
+            $expediente->setAttribute('status', self::STATUS_PENDING_DECISION);
 
             if (! empty($data['valid_from'])) {
                 $expediente->setAttribute('valid_from', $data['valid_from']);
@@ -258,7 +249,7 @@ class ExpedienteWorkflowService
 
             $expediente->save();
 
-            $this->storeDecisionFiles($expediente, $files, $actor);
+            $this->storeDecisionFiles($expediente, $correctionFiles, $actor, 'correction');
 
             $decisionLabel = match ($data['decision']) {
                 'approved' => 'Aprobado',
@@ -269,7 +260,39 @@ class ExpedienteWorkflowService
 
             $this->recordEvent($expediente, 'decision_issued', "Decisión emitida: {$decisionLabel}", $actor, [
                 'decision' => $data['decision'],
+                'correction_files_count' => count($correctionFiles),
+            ]);
+
+            return $expediente;
+        });
+    }
+
+    /** @param  array<UploadedFile>  $files */
+    public function attachFinalDecisionDocument(Expediente $expediente, array $files, User $actor): Expediente
+    {
+        $currentStatus = (string) $expediente->getAttribute('status');
+
+        if (! in_array($currentStatus, [self::STATUS_PENDING_DECISION, 'pending_final_doc', 'pending_final_document'], true)) {
+            throw new DomainActionException('Transición no válida: se esperaba estado pending_decision.');
+        }
+
+        if (! $expediente->getAttribute('decision')) {
+            throw new DomainActionException('Debe emitirse la decisión antes de adjuntar el documento final.');
+        }
+
+        $this->enforcePreConditions($expediente, 'uploadFinalDecisionDocument', [], [], $files);
+
+        return DB::transaction(function () use ($expediente, $files, $actor): Expediente {
+            $this->storeDecisionFiles($expediente, $files, $actor, 'decision_document');
+
+            $finalStatus = $this->finalStatusFromDecision((string) $expediente->getAttribute('decision'));
+            $expediente->setAttribute('status', $finalStatus);
+            $expediente->setAttribute('completed_at', now());
+            $expediente->save();
+
+            $this->recordEvent($expediente, 'decision_document_attached', 'Documento final de decisión adjuntado', $actor, [
                 'files_count' => count($files),
+                'decision' => (string) $expediente->getAttribute('decision'),
             ]);
 
             return $expediente;
@@ -379,11 +402,23 @@ class ExpedienteWorkflowService
             self::STATUS_IN_INSPECTION => 'En inspección',
             self::STATUS_PENDING_RESPONSE => 'Por respuesta técnica',
             self::STATUS_PENDING_DECISION => 'Por decisión',
+            'pending_final_doc' => 'Por decisión',
+            'pending_final_document' => 'Por decisión',
             self::STATUS_COMPLETED => 'Concluido',
             self::STATUS_REJECTED => 'Rechazado',
             self::STATUS_PARTIAL => 'Aprobado parcialmente',
             self::STATUS_SUSPENDED => 'Suspendido',
         ];
+    }
+
+    private function finalStatusFromDecision(string $decision): string
+    {
+        return match ($decision) {
+            'approved' => self::STATUS_COMPLETED,
+            'rejected' => self::STATUS_REJECTED,
+            'partial' => self::STATUS_PARTIAL,
+            default => self::STATUS_SUSPENDED,
+        };
     }
 
     /**
@@ -436,7 +471,7 @@ class ExpedienteWorkflowService
         return match ($action) {
             'confirm' => $this->validateReception($expediente, $pt),
             'submitInspection' => $this->validateInspectionSubmit($pt),
-            'issueDecision' => $this->validateDecision($pt),
+            'uploadFinalDecisionDocument' => $this->validateDecision($pt),
             default => [],
         };
     }
@@ -462,7 +497,7 @@ class ExpedienteWorkflowService
         match ($action) {
             'confirm' => $this->enforceReception($expediente, $pt),
             'submitInspection' => $this->enforceInspectionSubmit($pt, $photos, $reports),
-            'issueDecision' => $this->enforceDecision($pt, $decisionFiles),
+            'uploadFinalDecisionDocument' => $this->enforceDecision($pt, $decisionFiles),
             default => null,
         };
     }
@@ -622,7 +657,7 @@ class ExpedienteWorkflowService
     /**
      * @param  array<UploadedFile>  $files
      */
-    protected function storeDecisionFiles(Expediente $expediente, array $files, User $actor): void
+    protected function storeDecisionFiles(Expediente $expediente, array $files, User $actor, string $kind = 'decision_document'): void
     {
         $disk = 'local';
         $basePath = 'expedientes/decisions/'.$expediente->getKey();
@@ -643,6 +678,7 @@ class ExpedienteWorkflowService
 
             ExpedienteDecisionFile::query()->create([
                 'expediente_id' => $expediente->getKey(),
+                'kind' => $kind,
                 'disk' => $disk,
                 'path' => $storedPath,
                 'original_name' => $file->getClientOriginalName(),

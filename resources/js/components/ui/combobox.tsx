@@ -387,6 +387,12 @@ export function Combobox({
           <CommandInput
             placeholder={searchPlaceholder}
             aria-activedescendant={activeId}
+            onInput={(e) => {
+              const value = e.currentTarget.value;
+              debug('input event', value);
+              setQuery(value);
+              onQueryChange?.(value);
+            }}
             onKeyDown={(e) => {
               if (
                 multiple &&

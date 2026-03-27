@@ -95,12 +95,60 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
     React.useEffect(() => {
         const q = trimmedSolicitanteQuery;
 
+        // Si no hay query, cargar los 20 más recientes
         if (!q) {
-            setSolicitanteOptions([]);
-            setSolicitanteHasMore(false);
-            return;
+            const t = window.setTimeout(async () => {
+                setSolicitanteLoading(true);
+                try {
+                    const url = new URL('/procedures/solicitantes/search', window.location.origin);
+                    url.searchParams.set('limit', String(SOLICITANTE_SEARCH_LIMIT));
+
+                    const res = await fetch(url.toString(), {
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                    });
+
+                    if (!res.ok) throw new Error('search_failed');
+
+                    const json = (await res.json()) as {
+                        data: Array<{
+                            id: number;
+                            tipo_documento: string;
+                            numero_documento: string;
+                            nombre_razon_social: string;
+                            telefono?: string | null;
+                            email?: string | null;
+                            direccion?: string | null;
+                        }>;
+                        meta?: {
+                            has_more?: boolean;
+                        };
+                    };
+
+                    const nextMap: typeof solicitanteMap = {};
+                    const nextOptions = (json.data ?? []).map((s) => {
+                        const idStr = String(s.id);
+                        nextMap[idStr] = s;
+                        return {
+                            value: idStr,
+                            label: `${s.nombre_razon_social} — ${s.tipo_documento}${s.numero_documento}`,
+                        };
+                    });
+
+                    setSolicitanteOptions(nextOptions);
+                    setSolicitanteHasMore(Boolean(json.meta?.has_more));
+                    setSolicitanteMap((prev) => ({ ...prev, ...nextMap }));
+                } catch {
+                    setSolicitanteOptions([]);
+                    setSolicitanteHasMore(false);
+                } finally {
+                    setSolicitanteLoading(false);
+                }
+            }, 250);
+            return () => window.clearTimeout(t);
         }
 
+        // Si hay query pero menos de 2 caracteres, limpiar resultados
         if (q.length < SOLICITANTE_SEARCH_MIN_CHARS) {
             setSolicitanteOptions([]);
             setSolicitanteHasMore(false);

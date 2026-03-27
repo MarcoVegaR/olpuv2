@@ -152,6 +152,33 @@ class SolicitanteController extends BaseIndexController
         $num = isset($validated['numero_documento']) ? trim((string) $validated['numero_documento']) : null;
         $limit = (int) ($validated['limit'] ?? 20);
 
+        // Si no hay criterio de búsqueda, devolver los 20 más recientes
+        if ($q === '' && $num === null) {
+            $recentRows = Solicitante::query()
+                ->where('is_active', true)
+                ->orderBy('id', 'desc')
+                ->limit($limit)
+                ->get(['id', 'tipo_documento', 'numero_documento', 'nombre_razon_social', 'telefono', 'email', 'direccion']);
+
+            return response()->json([
+                'data' => $recentRows->map(fn (Solicitante $s) => [
+                    'id' => (int) $s->getKey(),
+                    'tipo_documento' => (string) $s->getAttribute('tipo_documento'),
+                    'numero_documento' => (string) $s->getAttribute('numero_documento'),
+                    'nombre_razon_social' => (string) $s->getAttribute('nombre_razon_social'),
+                    'telefono' => $s->getAttribute('telefono'),
+                    'email' => $s->getAttribute('email'),
+                    'direccion' => $s->getAttribute('direccion'),
+                ])->values(),
+                'meta' => [
+                    'query' => $q,
+                    'limit' => $limit,
+                    'returned' => $recentRows->count(),
+                    'has_more' => Solicitante::where('is_active', true)->count() > $limit,
+                ],
+            ]);
+        }
+
         $needle = $q !== '' ? Str::lower(Str::ascii($q)) : '';
 
         $preLimit = min(200, max($limit * 5, $limit));

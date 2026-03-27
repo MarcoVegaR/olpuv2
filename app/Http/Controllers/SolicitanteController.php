@@ -152,18 +152,6 @@ class SolicitanteController extends BaseIndexController
         $num = isset($validated['numero_documento']) ? trim((string) $validated['numero_documento']) : null;
         $limit = (int) ($validated['limit'] ?? 20);
 
-        if ($q === '' && $num === null) {
-            return response()->json([
-                'data' => [],
-                'meta' => [
-                    'query' => $q,
-                    'limit' => $limit,
-                    'returned' => 0,
-                    'has_more' => false,
-                ],
-            ]);
-        }
-
         $needle = $q !== '' ? Str::lower(Str::ascii($q)) : '';
 
         $preLimit = min(200, max($limit * 5, $limit));

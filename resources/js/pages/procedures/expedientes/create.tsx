@@ -42,6 +42,9 @@ interface FormDataShape {
     [key: string]: FormDataConvertible;
 }
 
+const SOLICITANTE_SEARCH_MIN_CHARS = 2;
+const SOLICITANTE_SEARCH_LIMIT = 20;
+
 export default function ExpedienteCreate({ procedureTypes }: Props) {
     const form = useForm<FormDataShape>({
         procedure_type_id: '',
@@ -62,6 +65,7 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
     const [procedureTypeQuery, setProcedureTypeQuery] = React.useState('');
     const [solicitanteLoading, setSolicitanteLoading] = React.useState(false);
     const [solicitanteOptions, setSolicitanteOptions] = React.useState<Array<{ value: string; label: string }>>([]);
+    const [solicitanteHasMore, setSolicitanteHasMore] = React.useState(false);
     const [solicitanteMap, setSolicitanteMap] = React.useState<
         Record<
             string,
@@ -78,16 +82,37 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
     >({});
 
     const selectedSolicitante = form.data.solicitante_id ? (solicitanteMap[String(form.data.solicitante_id)] ?? null) : null;
+    const trimmedSolicitanteQuery = solicitanteQuery.trim();
+    const shouldSearchSolicitantes = trimmedSolicitanteQuery.length >= SOLICITANTE_SEARCH_MIN_CHARS;
+    const solicitanteEmptyText = solicitanteLoading
+        ? 'Buscando…'
+        : !trimmedSolicitanteQuery
+          ? 'Escriba nombre o documento para buscar'
+          : !shouldSearchSolicitantes
+            ? `Escriba al menos ${SOLICITANTE_SEARCH_MIN_CHARS} caracteres`
+            : 'Sin coincidencias';
 
     React.useEffect(() => {
-        const q = solicitanteQuery.trim();
+        const q = trimmedSolicitanteQuery;
+
+        if (!q) {
+            setSolicitanteOptions([]);
+            setSolicitanteHasMore(false);
+            return;
+        }
+
+        if (q.length < SOLICITANTE_SEARCH_MIN_CHARS) {
+            setSolicitanteOptions([]);
+            setSolicitanteHasMore(false);
+            return;
+        }
 
         const t = window.setTimeout(async () => {
             setSolicitanteLoading(true);
             try {
                 const url = new URL('/procedures/solicitantes/search', window.location.origin);
-                if (q) url.searchParams.set('q', q);
-                url.searchParams.set('limit', '20');
+                url.searchParams.set('q', q);
+                url.searchParams.set('limit', String(SOLICITANTE_SEARCH_LIMIT));
 
                 const res = await fetch(url.toString(), {
                     headers: { Accept: 'application/json' },
@@ -106,6 +131,9 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                         email?: string | null;
                         direccion?: string | null;
                     }>;
+                    meta?: {
+                        has_more?: boolean;
+                    };
                 };
 
                 const nextMap: typeof solicitanteMap = {};
@@ -119,16 +147,18 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                 });
 
                 setSolicitanteOptions(nextOptions);
+                setSolicitanteHasMore(Boolean(json.meta?.has_more));
                 setSolicitanteMap((prev) => ({ ...prev, ...nextMap }));
             } catch {
                 setSolicitanteOptions([]);
+                setSolicitanteHasMore(false);
             } finally {
                 setSolicitanteLoading(false);
             }
         }, 250);
 
         return () => window.clearTimeout(t);
-    }, [solicitanteQuery]);
+    }, [trimmedSolicitanteQuery]);
 
     const selectedType = React.useMemo(
         () => procedureTypes.find((t) => t.id === form.data.procedure_type_id) ?? null,
@@ -265,10 +295,20 @@ export default function ExpedienteCreate({ procedureTypes }: Props) {
                                             onChange={(v) => form.setData('solicitante_id', v ? Number(v) : '')}
                                             placeholder="Seleccione un solicitante"
                                             searchPlaceholder="Buscar por nombre o documento…"
-                                            emptyText={solicitanteLoading ? 'Buscando…' : 'Sin coincidencias'}
+                                            emptyText={solicitanteEmptyText}
                                             onQueryChange={setSolicitanteQuery}
                                         />
                                     </Field>
+
+                                    <div className="text-muted-foreground text-xs">
+                                        {!trimmedSolicitanteQuery
+                                            ? 'Escriba al menos 2 caracteres para buscar solicitantes activos.'
+                                            : !shouldSearchSolicitantes
+                                              ? `Continúe escribiendo para llegar a ${SOLICITANTE_SEARCH_MIN_CHARS} caracteres.`
+                                              : solicitanteHasMore
+                                                ? `Mostrando los primeros ${SOLICITANTE_SEARCH_LIMIT} resultados. Refine la búsqueda para acotar más.`
+                                                : 'Puede buscar por nombre o número de documento.'}
+                                    </div>
 
                                     {selectedSolicitante && (
                                         <div className="bg-muted/30 rounded-md border p-2.5 text-sm">

@@ -14,6 +14,7 @@ use App\Models\Solicitante;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -151,6 +152,18 @@ class SolicitanteController extends BaseIndexController
         $num = isset($validated['numero_documento']) ? trim((string) $validated['numero_documento']) : null;
         $limit = (int) ($validated['limit'] ?? 20);
 
+        if ($q === '' && $num === null) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'query' => $q,
+                    'limit' => $limit,
+                    'returned' => 0,
+                    'has_more' => false,
+                ],
+            ]);
+        }
+
         $needle = $q !== '' ? Str::lower(Str::ascii($q)) : '';
 
         $preLimit = min(200, max($limit * 5, $limit));
@@ -177,11 +190,12 @@ class SolicitanteController extends BaseIndexController
                     $doc = Str::lower(Str::ascii((string) $s->getAttribute('numero_documento')));
 
                     return str_contains($name, $needle) || str_contains($doc, $needle);
-                })
-                ->take($limit);
-        } else {
-            $rows = $rows->take($limit);
+                });
         }
+
+        /** @var Collection<int, Solicitante> $rows */
+        $hasMore = $rows->count() > $limit;
+        $rows = $rows->take($limit);
 
         return response()->json([
             'data' => $rows->map(fn (Solicitante $s) => [
@@ -193,6 +207,12 @@ class SolicitanteController extends BaseIndexController
                 'email' => $s->getAttribute('email'),
                 'direccion' => $s->getAttribute('direccion'),
             ])->values(),
+            'meta' => [
+                'query' => $q,
+                'limit' => $limit,
+                'returned' => $rows->count(),
+                'has_more' => $hasMore,
+            ],
         ]);
     }
 }

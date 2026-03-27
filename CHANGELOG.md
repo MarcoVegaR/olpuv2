@@ -1,3 +1,9 @@
+# [1.6.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.5.1...v1.6.0) (2026-03-27)
+
+### Features
+
+- implement scalable solicitante search with best practices ([8a1c170](https://github.com/MarcoVegaR/olpuv2/commit/8a1c1706aec964c333515c7375be1363b17eb9af))
+
 ## [1.5.1](https://github.com/MarcoVegaR/olpuv2/compare/v1.5.0...v1.5.1) (2026-03-27)
 
 ### Bug Fixes

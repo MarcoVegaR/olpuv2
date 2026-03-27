@@ -1,3 +1,9 @@
+# [1.5.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.4.1...v1.5.0) (2026-03-27)
+
+### Features
+
+- improve solicitante search with scalable remote typeahead ([81d272d](https://github.com/MarcoVegaR/olpuv2/commit/81d272dc8c5931aadf46082ae13faf6f15f16ab1))
+
 ## [1.4.1](https://github.com/MarcoVegaR/olpuv2/compare/v1.4.0...v1.4.1) (2026-03-06)
 
 ### Bug Fixes

@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/MarcoVegaR/olpuv2/compare/v1.5.0...v1.5.1) (2026-03-27)
+
+### Bug Fixes
+
+- remove restrictive search condition that blocked all solicitante searches ([c601998](https://github.com/MarcoVegaR/olpuv2/commit/c6019987372f269d90d4cc26a5c926fe00012dac))
+
 # [1.5.0](https://github.com/MarcoVegaR/olpuv2/compare/v1.4.1...v1.5.0) (2026-03-27)
 
 ### Features
